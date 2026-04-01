@@ -3,79 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>おしゃべりボード - 横画面最適化版</title>
+    <title>おしゃべりボード - 画面フィット版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
+        :root {
+            --header-h: 100px;
+            --footer-h: 70px;
+        }
+        body, html {
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
             touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
             font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
             background-color: #f3f4f6;
         }
         
-        /* 横向き時のメインレイアウト */
         .app-container {
             display: flex;
             flex-direction: column;
             height: 100vh;
-            overflow: hidden;
+            width: 100vw;
+        }
+
+        /* ヘッダー固定 */
+        header {
+            height: var(--header-h);
+            flex-shrink: 0;
         }
 
         .main-content {
             display: flex;
             flex: 1;
-            overflow: hidden;
+            overflow: hidden; /* ここで突き抜けを防止 */
         }
 
-        /* サイドバー（カテゴリー） */
+        /* サイドバー */
         .sidebar {
-            width: 200px;
+            width: 160px;
             background: #f9fafb;
             border-right: 2px solid #e5e7eb;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            padding: 12px;
+            gap: 6px;
+            padding: 8px;
+            flex-shrink: 0;
         }
 
         /* 右側エリア */
         .content-area {
             flex: 1;
             overflow-y: auto;
-            padding: 16px;
+            padding: 12px;
             background: white;
         }
 
         .category-tab {
             width: 100%;
-            text-align: left;
-            padding: 16px;
-            border-radius: 12px;
+            padding: 12px 8px;
+            border-radius: 10px;
             font-weight: bold;
-            font-size: 1.1rem;
+            font-size: 1rem;
             border-bottom: 4px solid rgba(0,0,0,0.1);
-            transition: all 0.1s;
+            color: white;
         }
 
         .category-tab.active {
             transform: translateX(4px);
             border-bottom-width: 0;
             box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+            filter: brightness(0.9);
         }
 
-        /* 五十音キーボードのグリッド調整 */
+        /* フッター固定 */
+        footer {
+            height: var(--footer-h);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 12px;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        /* 五十音キーボード */
         .kana-grid-container {
             display: grid;
             grid-template-columns: repeat(10, 1fr);
             direction: rtl;
-            gap: 6px;
+            gap: 4px;
         }
         
         .kana-col {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 4px;
         }
 
         .kana-key {
@@ -83,161 +108,133 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.25rem;
+            font-size: 1.1rem;
             font-weight: bold;
             background: white;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            box-shadow: 0 2px 0 rgba(0,0,0,0.05);
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            box-shadow: 0 1px 0 rgba(0,0,0,0.1);
             direction: ltr;
         }
-
-        .kana-key:active { background-color: #dbeafe; transform: translateY(1px); box-shadow: none; }
 
         .phrase-tag {
             display: inline-flex;
             align-items: center;
-            gap: 4px;
-            padding: 6px 12px;
-            border-radius: 10px;
+            padding: 4px 10px;
+            border-radius: 8px;
             font-weight: bold;
-            font-size: 1.1rem;
-            margin: 3px;
-            border: 2px solid rgba(0,0,0,0.05);
-            animation: popIn 0.2s ease-out;
+            font-size: 1rem;
+            margin: 2px;
+            border: 1px solid rgba(0,0,0,0.1);
         }
 
-        @keyframes popIn {
-            0% { transform: scale(0.9); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-
-        /* スクロールバー非表示 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
-<body class="overflow-hidden">
+<body>
 
     <div class="app-container">
-        <!-- ヘッダー：メッセージ表示エリア -->
-        <header class="bg-white shadow-sm p-3 flex flex-col gap-2 z-20 border-b">
-            <div class="flex items-center gap-3">
-                <div id="display-area" 
-                     class="flex-1 min-h-[70px] p-2 border-2 border-blue-200 rounded-xl bg-gray-50 flex flex-wrap content-start overflow-y-auto max-h-[100px]">
-                    <!-- タグがここに入る -->
-                </div>
-                <div class="flex flex-col gap-2">
-                    <button onclick="clearAll()" class="bg-red-50 text-red-600 px-4 py-2 rounded-xl border border-red-200 font-bold text-sm whitespace-nowrap">
-                        ぜんぶ けす
-                    </button>
-                    <button onclick="speakAll()" class="bg-blue-600 text-white px-6 py-4 rounded-xl shadow-md active:bg-blue-800 transition-all font-bold text-xl flex items-center justify-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-                        はなす
-                    </button>
-                </div>
+        <!-- ヘッダー：高さを固定して内容を詰め込む -->
+        <header class="bg-white shadow-sm p-2 flex items-center gap-2 border-b">
+            <div id="display-area" 
+                 class="flex-1 h-[80px] p-1 border-2 border-blue-200 rounded-lg bg-gray-50 flex flex-wrap content-start overflow-y-auto no-scrollbar">
+                <!-- タグがここに入る -->
+            </div>
+            <div class="flex flex-col gap-1 w-24">
+                <button onclick="clearAll()" class="bg-red-50 text-red-600 py-1 rounded-lg border border-red-200 font-bold text-xs">
+                    けす
+                </button>
+                <button onclick="speakAll()" class="bg-blue-600 text-white py-3 rounded-lg shadow-md active:bg-blue-800 font-bold text-lg flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/></svg>
+                    はなす
+                </button>
             </div>
         </header>
 
         <div class="main-content">
-            <!-- 左サイドバー：カテゴリー選択 -->
+            <!-- 左サイドバー -->
             <aside class="sidebar no-scrollbar" id="category-sidebar">
                 <!-- JSで生成 -->
             </aside>
 
-            <!-- 右メインエリア：カードまたはキーボード -->
+            <!-- 右メインエリア -->
             <main class="content-area no-scrollbar">
                 <!-- カードグリッド -->
-                <div id="content-grid" class="grid grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div id="content-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                     <!-- JSで生成 -->
                 </div>
 
-                <!-- 五十音キーボード (初期は非表示) -->
-                <div id="kana-keyboard" class="hidden max-w-4xl mx-auto">
-                    <div class="flex justify-between mb-4 items-center bg-blue-50 p-3 rounded-xl">
-                        <h3 class="text-lg font-bold text-blue-700">もじを えらぶ</h3>
-                        <div class="flex gap-2">
-                            <button onclick="toggleKeyboardMode('standard')" id="mode-std" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm">せいおん</button>
-                            <button onclick="toggleKeyboardMode('dakuon')" id="mode-daku" class="px-4 py-2 bg-white border border-gray-300 rounded-lg font-bold text-sm">にごる</button>
+                <!-- 五十音キーボード -->
+                <div id="kana-keyboard" class="hidden">
+                    <div class="flex justify-between mb-2 items-center bg-blue-50 p-2 rounded-lg">
+                        <span class="text-sm font-bold text-blue-700">もじを えらぶ</span>
+                        <div class="flex gap-1">
+                            <button onclick="toggleKeyboardMode('standard')" id="mode-std" class="px-3 py-1 bg-blue-600 text-white rounded font-bold text-xs">せいおん</button>
+                            <button onclick="toggleKeyboardMode('dakuon')" id="mode-daku" class="px-3 py-1 bg-white border border-gray-300 rounded font-bold text-xs">にごる</button>
                         </div>
                     </div>
                     
-                    <div class="kana-grid-container mb-6" id="kana-grid"></div>
+                    <div class="kana-grid-container mb-4" id="kana-grid"></div>
 
-                    <div class="grid grid-cols-4 gap-3">
-                        <button onclick="addChar(' ')" class="bg-gray-100 p-4 rounded-xl font-bold">あき</button>
-                        <button onclick="removeLastTag()" class="bg-orange-100 text-orange-700 p-4 rounded-xl font-bold">1つ けす</button>
-                        <button onclick="speakAll()" class="bg-blue-600 text-white p-4 rounded-xl font-bold col-span-2 shadow-md">こえにだす</button>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button onclick="addChar(' ')" class="bg-gray-100 py-3 rounded-lg font-bold text-sm">あき</button>
+                        <button onclick="removeLastTag()" class="bg-orange-100 text-orange-700 py-3 rounded-lg font-bold text-sm">1つ けす</button>
+                        <button onclick="speakAll()" class="bg-blue-600 text-white py-3 rounded-lg font-bold col-span-2 text-sm shadow-md">こえにだす</button>
                     </div>
                 </div>
             </main>
         </div>
 
-        <!-- フッター：モード切替ボタン -->
-        <footer class="bg-white p-3 border-t flex justify-center">
-            <button id="keyboard-toggle-btn" onclick="toggleKeyboard(true)" class="w-full max-w-md bg-green-500 text-white text-xl font-bold py-3 rounded-xl shadow-sm active:bg-green-600 flex items-center justify-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                じゆうに もじを うつ
+        <!-- フッター：ここが隠れないようにflex-shrink:0を指定 -->
+        <footer>
+            <button id="keyboard-toggle-btn" onclick="toggleKeyboard(true)" class="w-full max-w-sm bg-green-500 text-white text-lg font-bold py-3 rounded-xl shadow-sm active:bg-green-600 flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                もじを うつ
             </button>
         </footer>
     </div>
 
-    <!-- 先生の名前編集用モーダル -->
+    <!-- 編集モーダル -->
     <div id="voice-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <h4 class="text-xl font-bold mb-4">せんせいの なまえ</h4>
-            <input type="text" id="voice-name-input" class="w-full p-3 border-2 border-blue-200 rounded-xl mb-4 text-lg">
+        <div class="bg-white rounded-xl p-5 w-full max-w-xs shadow-2xl">
+            <h4 class="text-lg font-bold mb-3">せんせいの なまえ</h4>
+            <input type="text" id="voice-name-input" class="w-full p-2 border-2 border-blue-200 rounded-lg mb-4">
             <div class="flex gap-2">
-                <button onclick="closeVoiceModal()" class="flex-1 py-3 bg-gray-200 rounded-xl font-bold">やめる</button>
-                <button onclick="saveVoiceName()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">きめる</button>
+                <button onclick="closeVoiceModal()" class="flex-1 py-2 bg-gray-100 rounded-lg font-bold">やめる</button>
+                <button onclick="saveVoiceName()" class="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold">きめる</button>
             </div>
         </div>
     </div>
 
     <script>
         const categories = [
-            { id: 'teacher', name: 'せんせい', color: 'bg-blue-500', textBtn: 'bg-blue-100 border-blue-200' },
-            { id: 'greet', name: 'あいさつ', color: 'bg-orange-400', textBtn: 'bg-orange-50 border-orange-200' },
-            { id: 'toilet', name: 'トイレ', color: 'bg-teal-500', textBtn: 'bg-teal-50 border-teal-200' },
-            { id: 'food', name: 'たべもの', color: 'bg-yellow-400', textBtn: 'bg-yellow-50 border-yellow-200' },
-            { id: 'request', name: 'おねがい', color: 'bg-indigo-400', textBtn: 'bg-indigo-50 border-indigo-200' },
-            { id: 'feel', name: 'きもち', color: 'bg-pink-400', textBtn: 'bg-pink-50 border-pink-200' },
-            { id: 'body', name: 'からだ', color: 'bg-green-400', textBtn: 'bg-green-50 border-green-200' }
+            { id: 'teacher', name: 'せんせい', color: 'bg-blue-500', textBtn: 'bg-blue-50 border-blue-100' },
+            { id: 'greet', name: 'あいさつ', color: 'bg-orange-400', textBtn: 'bg-orange-50 border-orange-100' },
+            { id: 'toilet', name: 'トイレ', color: 'bg-teal-500', textBtn: 'bg-teal-50 border-teal-100' },
+            { id: 'food', name: 'たべもの', color: 'bg-yellow-400', textBtn: 'bg-yellow-50 border-yellow-100' },
+            { id: 'request', name: 'おねがい', color: 'bg-indigo-400', textBtn: 'bg-indigo-50 border-indigo-100' },
+            { id: 'feel', name: 'きもち', color: 'bg-pink-400', textBtn: 'bg-pink-50 border-pink-100' },
+            { id: 'body', name: 'からだ', color: 'bg-green-400', textBtn: 'bg-green-50 border-green-100' }
         ];
 
         const phrases = [
-            { cat: 'greet', text: 'おはよう', icon: '☀️' },
-            { cat: 'greet', text: 'こんにちは', icon: '😊' },
-            { cat: 'greet', text: 'ありがとう', icon: '🙏' },
-            { cat: 'greet', text: 'すみません', icon: '🙇‍♂️' },
-            { cat: 'toilet', text: 'トイレ', icon: '🚻' },
-            { cat: 'toilet', text: 'おしっこ', icon: '💧' },
-            { cat: 'toilet', text: 'うんち', icon: '💩' },
-            { cat: 'toilet', text: 'おむつ', icon: '👶' },
-            { cat: 'toilet', text: 'かえて', icon: '🔄' },
-            { cat: 'toilet', text: 'ふきたい', icon: '🧻' },
-            { cat: 'food', text: 'ごはん', icon: '🍚' },
-            { cat: 'food', text: 'おちゃ', icon: '🍵' },
-            { cat: 'food', text: 'おかし', icon: '🍪' },
-            { cat: 'food', text: 'ぱん', icon: '🍞' },
-            { cat: 'request', text: 'を', icon: '🔗' },
-            { cat: 'request', text: 'に', icon: '🔗' },
-            { cat: 'request', text: 'いきたい', icon: '🏃‍♂️' },
-            { cat: 'request', text: 'たべたい', icon: '😋' },
-            { cat: 'request', text: 'のみたい', icon: '🥤' },
-            { cat: 'request', text: 'てつだって', icon: '🤝' },
-            { cat: 'feel', text: 'うれしい', icon: '✨' },
-            { cat: 'feel', text: 'かなしい', icon: '😢' },
+            { cat: 'greet', text: 'おはよう', icon: '☀️' }, { cat: 'greet', text: 'こんにちは', icon: '😊' },
+            { cat: 'greet', text: 'ありがとう', icon: '🙏' }, { cat: 'greet', text: 'すみません', icon: '🙇‍♂️' },
+            { cat: 'toilet', text: 'トイレ', icon: '🚻' }, { cat: 'toilet', text: 'おしっこ', icon: '💧' },
+            { cat: 'toilet', text: 'うんち', icon: '💩' }, { cat: 'toilet', text: 'おむつ', icon: '👶' },
+            { cat: 'toilet', text: 'かえて', icon: '🔄' }, { cat: 'toilet', text: 'ふきたい', icon: '🧻' },
+            { cat: 'food', text: 'ごはん', icon: '🍚' }, { cat: 'food', text: 'おちゃ', icon: '🍵' },
+            { cat: 'food', text: 'おかし', icon: '🍪' }, { cat: 'food', text: 'ぱん', icon: '🍞' },
+            { cat: 'request', text: 'を', icon: '🔗' }, { cat: 'request', text: 'に', icon: '🔗' },
+            { cat: 'request', text: 'いきたい', icon: '🏃‍♂️' }, { cat: 'request', text: 'たべたい', icon: '😋' },
+            { cat: 'request', text: 'のみたい', icon: '🥤' }, { cat: 'request', text: 'てつだって', icon: '🤝' },
+            { cat: 'feel', text: 'うれしい', icon: '✨' }, { cat: 'feel', text: 'かなしい', icon: '😢' },
             { cat: 'feel', text: 'つかれた', icon: '😫' },
-            { cat: 'body', text: 'あたま', icon: '👤' },
-            { cat: 'body', text: 'め', icon: '👁️' },
-            { cat: 'body', text: 'みみ', icon: '👂' },
-            { cat: 'body', text: 'はな', icon: '👃' },
-            { cat: 'body', text: 'くち', icon: '👄' },
-            { cat: 'body', text: 'て', icon: '✋' },
-            { cat: 'body', text: 'あし', icon: '👣' },
-            { cat: 'body', text: 'おなか', icon: '🥯' },
-            { cat: 'body', text: 'いたい', icon: '⚡' },
-            { cat: 'body', text: 'かゆい', icon: '🐜' }
+            { cat: 'body', text: 'あたま', icon: '👤' }, { cat: 'body', text: 'め', icon: '👁️' },
+            { cat: 'body', text: 'みみ', icon: '👂' }, { cat: 'body', text: 'はな', icon: '👃' },
+            { cat: 'body', text: 'くち', icon: '👄' }, { cat: 'body', text: 'て', icon: '✋' },
+            { cat: 'body', text: 'あし', icon: '👣' }, { cat: 'body', text: 'おなか', icon: '🥯' },
+            { cat: 'body', text: 'いたい', icon: '⚡' }, { cat: 'body', text: 'かゆい', icon: '🐜' }
         ];
 
         const kanaStandard = [
@@ -271,9 +268,7 @@
 
         function loadVoices() {
             voices = window.speechSynthesis.getVoices().filter(v => v.lang.includes('ja'));
-            if (voices.length > 0 && currentCategoryId === 'teacher') {
-                renderContent();
-            }
+            if (voices.length > 0 && currentCategoryId === 'teacher') renderContent();
         }
         window.speechSynthesis.onvoiceschanged = loadVoices;
 
@@ -288,8 +283,8 @@
             const container = document.getElementById('category-sidebar');
             container.innerHTML = categories.map(cat => `
                 <button onclick="setCategory('${cat.id}')" 
-                        class="category-tab text-white transition-all
-                        ${cat.id === currentCategoryId ? 'active scale-105 shadow-inner' : 'opacity-80'} ${cat.color}">
+                        class="category-tab transition-all
+                        ${cat.id === currentCategoryId ? 'active' : 'opacity-80'} ${cat.color}">
                     ${cat.name}
                 </button>
             `).join('');
@@ -308,21 +303,21 @@
 
             if (currentCategoryId === 'teacher') {
                 if (voices.length === 0) {
-                    grid.innerHTML = '<div class="col-span-full text-center p-10 font-bold text-gray-400">よみこみちゅう...</div>';
+                    grid.innerHTML = '<div class="col-span-full text-center p-4 text-gray-400">よみこみちゅう...</div>';
                     return;
                 }
                 voices.forEach((v, i) => {
                     const name = customVoiceNames[v.name] || getDefaultName(v, i);
                     const isSelected = selectedVoiceIndex === i;
                     const card = document.createElement('div');
-                    card.className = `${isSelected ? 'bg-blue-600 text-white shadow-inner scale-95' : 'bg-white text-blue-600'} border-2 border-blue-200 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 transition-all cursor-pointer relative min-h-[120px]`;
+                    card.className = `${isSelected ? 'bg-blue-600 text-white shadow-inner scale-95' : 'bg-white text-blue-600'} border border-blue-200 rounded-xl p-2 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer relative min-h-[90px]`;
                     card.innerHTML = `
                         <div onclick="selectVoice(${i})" class="flex-1 flex flex-col items-center justify-center w-full">
-                            <span class="text-3xl">👤</span>
-                            <span class="text-sm font-bold text-center leading-tight">${name}</span>
+                            <span class="text-2xl">👤</span>
+                            <span class="text-[10px] font-bold text-center leading-tight">${name}</span>
                         </div>
-                        <button onclick="openVoiceModal(${i})" class="absolute top-1 right-1 p-2 bg-gray-100 rounded-full text-gray-500 hover:text-blue-600">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        <button onclick="openVoiceModal(${i})" class="absolute top-1 right-1 p-1 bg-gray-50 rounded-full text-gray-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         </button>
                     `;
                     grid.appendChild(card);
@@ -332,9 +327,9 @@
                 const catInfo = categories.find(c => c.id === currentCategoryId);
                 grid.innerHTML = filtered.map(p => `
                     <div onclick="addPhrase('${p.text}', '${catInfo.textBtn}')" 
-                         class="${catInfo.textBtn} border-2 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 shadow-sm active:scale-95 transition-transform cursor-pointer min-h-[120px]">
-                        <span class="text-4xl">${p.icon}</span>
-                        <span class="text-lg font-bold text-gray-800 text-center">${p.text}</span>
+                         class="${catInfo.textBtn} border rounded-xl p-2 flex flex-col items-center justify-center gap-1 shadow-sm active:scale-95 transition-transform cursor-pointer min-h-[90px]">
+                        <span class="text-3xl">${p.icon}</span>
+                        <span class="text-xs font-bold text-gray-800 text-center">${p.text}</span>
                     </div>
                 `).join('');
             }
@@ -404,7 +399,7 @@
             area.innerHTML = selectedPhrases.map((p, i) => `
                 <div class="phrase-tag ${p.colorClass}">
                     <span>${p.text}</span>
-                    <button onclick="event.stopPropagation(); removeTag(${i})" class="ml-1 text-gray-400 hover:text-red-500 font-bold">✕</button>
+                    <button onclick="event.stopPropagation(); removeTag(${i})" class="ml-1 text-gray-400 font-bold">✕</button>
                 </div>
             `).join('');
             area.scrollTop = area.scrollHeight;
@@ -419,11 +414,8 @@
             if (!window.speechSynthesis) return;
             window.speechSynthesis.cancel();
             const uttr = new SpeechSynthesisUtterance(text);
-            if (voices.length > 0) {
-                uttr.voice = voices[selectedVoiceIndex];
-            }
+            if (voices.length > 0) uttr.voice = voices[selectedVoiceIndex];
             uttr.lang = 'ja-JP';
-            uttr.rate = 1.0;
             window.speechSynthesis.speak(uttr);
         }
 
@@ -437,9 +429,6 @@
                 column.forEach(char => {
                     html += `<button onclick="addChar('${char}')" class="kana-key">${char}</button>`;
                 });
-                if (column.length < 5) {
-                    for(let i=0; i < 5 - column.length; i++) html += `<div class="kana-key-empty h-full"></div>`;
-                }
                 html += `</div>`;
             });
             grid.innerHTML = html;
@@ -450,11 +439,11 @@
             const btnStd = document.getElementById('mode-std');
             const btnDaku = document.getElementById('mode-daku');
             if(mode === 'standard') {
-                btnStd.className = "px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm";
-                btnDaku.className = "px-4 py-2 bg-white border border-gray-300 rounded-lg font-bold text-sm";
+                btnStd.className = "px-3 py-1 bg-blue-600 text-white rounded font-bold text-xs";
+                btnDaku.className = "px-3 py-1 bg-white border border-gray-300 rounded font-bold text-xs";
             } else {
-                btnDaku.className = "px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm";
-                btnStd.className = "px-4 py-2 bg-white border border-gray-300 rounded-lg font-bold text-sm";
+                btnDaku.className = "px-3 py-1 bg-blue-600 text-white rounded font-bold text-xs";
+                btnStd.className = "px-3 py-1 bg-white border border-gray-300 rounded font-bold text-xs";
             }
             renderKana();
         }
@@ -475,7 +464,7 @@
                 kb.classList.add('hidden');
                 grid.classList.remove('hidden');
                 sidebar.classList.remove('hidden');
-                toggleBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>じゆうに もじを うつ`;
+                toggleBtn.innerHTML = `もじを うつ`;
                 toggleBtn.onclick = () => toggleKeyboard(true);
             }
         }
