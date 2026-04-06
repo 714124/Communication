@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>おしゃべりボード - カスタム版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -18,6 +18,7 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            height: -webkit-fill-available;
             width: 100vw;
         }
         header {
@@ -27,8 +28,13 @@
             padding: 8px;
             display: flex;
             gap: 8px;
-            height: 90px;
+            height: 80px; /* 少し高さを抑える */
         }
+        /* 横向き時のヘッダー調整 */
+        @media (orientation: landscape) {
+            header { height: 65px; padding: 4px 8px; }
+        }
+
         .main-container {
             flex: 1;
             display: flex;
@@ -39,13 +45,15 @@
             background: white;
             border-top: 1px solid #e5e7eb;
             padding: 8px;
-            height: 64px;
+            padding-bottom: calc(8px + env(safe-area-inset-bottom)); /* iPhoneのセーフエリア対応 */
+            height: auto;
+            min-height: 60px;
             display: flex;
             gap: 8px;
             justify-content: center;
         }
         .sidebar {
-            width: 100px;
+            width: 110px;
             overflow-y: auto;
             background: #f9fafb;
             border-right: 2px solid #e5e7eb;
@@ -54,10 +62,14 @@
             flex-direction: column;
             gap: 4px;
         }
+        @media (orientation: landscape) {
+            .sidebar { width: 130px; }
+        }
+
         .content-area {
             flex: 1;
             overflow-y: auto;
-            padding: 12px;
+            padding: 10px;
             background: white;
         }
         .display-box {
@@ -74,14 +86,18 @@
         }
         .category-btn {
             width: 100%;
-            padding: 10px 2px;
+            padding: 12px 2px;
             border-radius: 8px;
             font-weight: bold;
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             color: white;
             text-align: center;
             transition: all 0.2s;
         }
+        @media (orientation: landscape) {
+            .category-btn { padding: 8px 2px; font-size: 0.75rem; }
+        }
+
         .category-btn.active {
             box-shadow: inset 0 4px 6px rgba(0,0,0,0.2);
             filter: brightness(0.8);
@@ -109,7 +125,7 @@
             grid-template-columns: repeat(10, 1fr);
             direction: rtl;
             gap: 4px;
-            max-width: 600px;
+            max-width: 650px;
             margin: 0 auto;
         }
         .tag {
@@ -120,7 +136,6 @@
             font-weight: bold;
             font-size: 0.9rem;
         }
-        /* スクロールバー非表示 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
@@ -130,7 +145,7 @@
         <header>
             <div id="display-area" class="display-box no-scrollbar"></div>
             <div class="flex flex-col gap-1 w-20">
-                <button onclick="clearAll()" class="text-[10px] bg-red-100 text-red-600 font-bold p-1 rounded">けす</button>
+                <button onclick="clearAll()" class="text-[10px] bg-red-100 text-red-600 font-bold p-1 rounded h-1/2">けす</button>
                 <button onclick="speakAll()" class="flex-1 bg-blue-600 text-white font-bold rounded shadow flex items-center justify-center text-xl">📢</button>
             </div>
         </header>
@@ -138,15 +153,19 @@
         <div class="main-container">
             <aside id="sidebar" class="sidebar no-scrollbar"></aside>
             <main class="content-area">
-                <div id="card-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3"></div>
+                <div id="card-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3"></div>
                 <div id="keyboard-area" class="hidden">
                     <div id="kana-container" class="kana-grid"></div>
+                    <div class="flex gap-2 mt-4 max-w-[650px] mx-auto">
+                        <button onclick="removeLastChar()" class="flex-1 bg-gray-200 py-3 rounded-xl font-bold text-gray-700">1つ消す</button>
+                        <button onclick="addChar(' ')" class="flex-1 bg-gray-100 py-3 rounded-xl font-bold text-gray-500">空白</button>
+                    </div>
                 </div>
             </main>
         </div>
 
         <footer>
-            <button onclick="toggleKeyboard()" id="kb-toggle" class="flex-1 bg-green-500 text-white font-bold rounded-xl text-sm">もじを うつ</button>
+            <button onclick="toggleKeyboard()" id="kb-toggle" class="flex-1 bg-green-500 text-white font-bold rounded-xl text-sm py-3 px-4 shadow-sm active:bg-green-600">もじを うつ</button>
             <button id="add-btn" onclick="openAddModal()" class="w-16 bg-orange-400 text-white font-bold rounded-xl text-2xl shadow-md active:bg-orange-500">+</button>
         </footer>
     </div>
@@ -180,7 +199,6 @@
             { id: 'feel', name: 'きもち', color: 'bg-pink-500' }
         ];
 
-        // 初期のフレーズデータ（localStorageにない場合のみ使用）
         const defaultPhrases = [
             { cat: 'greet', text: 'おはよう', icon: '☀️', custom: false },
             { cat: 'greet', text: 'こんにちは', icon: '😊', custom: false },
@@ -190,7 +208,7 @@
             { cat: 'food', text: 'おちゃ', icon: '🍵', custom: false }
         ];
 
-        let phrases = JSON.parse(localStorage.getItem('yubidenwa_v2_phrases')) || defaultPhrases;
+        let phrases = JSON.parse(localStorage.getItem('yubidenwa_v3_phrases')) || defaultPhrases;
 
         const kanaStd = [['あ','い','う','え','お'],['か','き','く','け','こ'],['さ','し','す','せ','そ'],['た','ち','つ','て','と'],['な','に','ぬ','ね','の'],['は','ひ','ふ','へ','ほ'],['ま','み','む','め','も'],['や','ゆ','よ'],['ら','り','る','れ','ろ'],['わ','を','ん']];
 
@@ -208,7 +226,6 @@
                 window.speechSynthesis.onvoiceschanged = loadVoices;
             }
             loadVoices(); 
-            
             renderSidebar();
             renderCards();
         }
@@ -222,9 +239,7 @@
 
         function setCat(id) {
             currentCat = id;
-            // せんせいタブ以外では「＋」ボタンを表示
             document.getElementById('add-btn').style.display = (id === 'teacher') ? 'none' : 'block';
-            
             document.getElementById('keyboard-area').classList.add('hidden');
             document.getElementById('card-grid').classList.remove('hidden');
             document.getElementById('kb-toggle').innerText = "もじを うつ";
@@ -241,7 +256,7 @@
                     grid.innerHTML = `
                         <div class="col-span-full p-4 text-center">
                             <p class="text-xs text-gray-400 mb-4">iPhoneの方は下のボタンを<br>おしてください</p>
-                            <button onclick="forceLoadVoices()" class="bg-blue-100 text-blue-600 px-6 py-3 rounded-xl font-bold active:scale-95">こえを よみこむ</button>
+                            <button onclick="forceLoadVoices()" class="bg-blue-100 text-blue-600 px-6 py-4 rounded-xl font-bold active:scale-95">こえを よみこむ</button>
                         </div>`;
                     return;
                 }
@@ -258,7 +273,7 @@
                     grid.innerHTML = `<div class="col-span-full text-center py-10 text-gray-300 font-bold">右下の「＋」から<br>カードをふやせます</div>`;
                 }
                 
-                list.forEach((p, idx) => {
+                list.forEach((p) => {
                     const card = document.createElement('div');
                     card.className = "card";
                     card.innerHTML = `
@@ -289,25 +304,14 @@
             document.getElementById('new-text').focus();
         }
 
-        function closeAddModal() {
-            document.getElementById('add-modal').classList.add('hidden');
-        }
+        function closeAddModal() { document.getElementById('add-modal').classList.add('hidden'); }
 
         function saveNewPhrase() {
             const text = document.getElementById('new-text').value.trim();
             const icon = document.getElementById('new-icon').value.trim() || '⭐️';
             if (!text) return;
-
-            // 新しいフレーズを現在選んでいるカテゴリーに追加
-            phrases.push({ 
-                cat: currentCat, 
-                text: text, 
-                icon: icon, 
-                custom: true 
-            });
-
-            localStorage.setItem('yubidenwa_v2_phrases', JSON.stringify(phrases));
-            
+            phrases.push({ cat: currentCat, text, icon, custom: true });
+            localStorage.setItem('yubidenwa_v3_phrases', JSON.stringify(phrases));
             document.getElementById('new-text').value = '';
             document.getElementById('new-icon').value = '';
             closeAddModal();
@@ -316,9 +320,8 @@
 
         function deletePhrase(text, e) {
             e.stopPropagation();
-            // テキストとカテゴリーが一致するものを削除（カスタムのみ）
             phrases = phrases.filter(p => !(p.text === text && p.cat === currentCat && p.custom === true));
-            localStorage.setItem('yubidenwa_v2_phrases', JSON.stringify(phrases));
+            localStorage.setItem('yubidenwa_v3_phrases', JSON.stringify(phrases));
             renderCards();
         }
 
@@ -341,15 +344,10 @@
             `).join('');
         }
 
-        function add(t) { 
-            selected.push(t); 
-            updateDisplay(); 
-            speak(t); 
-        }
+        function add(t) { selected.push(t); updateDisplay(); speak(t); }
 
         function addChar(c) {
-            if (selected.length > 0 && selected[selected.length-1].length === 1 && !"あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん".includes(selected[selected.length-1])) {
-                // 前の文字が1文字なら結合（微調整が必要な場合あり）
+            if (selected.length > 0 && selected[selected.length-1].length === 1 && !"あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん".includes(selected[selected.length-1]) && c !== ' ') {
                 selected[selected.length-1] += c;
             } else { 
                 selected.push(c); 
@@ -357,10 +355,18 @@
             updateDisplay();
         }
 
-        function clearAll() { 
-            selected = []; 
-            updateDisplay(); 
+        function removeLastChar() {
+            if (selected.length === 0) return;
+            let last = selected[selected.length-1];
+            if (last.length > 1) {
+                selected[selected.length-1] = last.slice(0, -1);
+            } else {
+                selected.pop();
+            }
+            updateDisplay();
         }
+
+        function clearAll() { selected = []; updateDisplay(); }
 
         function updateDisplay() {
             const area = document.getElementById('display-area');
@@ -379,7 +385,6 @@
             const u = new SpeechSynthesisUtterance(text);
             if (voices[activeVoiceIdx]) u.voice = voices[activeVoiceIdx];
             u.lang = 'ja-JP';
-            u.rate = 1.0;
             window.speechSynthesis.speak(u);
         }
 
