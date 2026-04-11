@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>おしゃべりボード - フルワイド操作版</title>
+    <title>おしゃべりボード - カスタム機能付き</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body, html {
@@ -65,7 +65,6 @@
 
         .category-btn {
             width: 100%;
-            flex: 1;
             min-height: 60px;
             padding: 8px 4px;
             border-radius: 14px;
@@ -79,6 +78,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
         }
         .category-btn:active {
             transform: translateY(2px);
@@ -102,13 +102,11 @@
             gap: 8px;
         }
         
-        /* フッター：横幅いっぱいに広げる設定 */
         footer {
             flex-shrink: 0;
             background: #f1f5f9;
             border-top: 2px solid #e5e7eb;
             padding: 12px;
-            /* サイドバーとの重なりを解消しつつ横幅を確保 */
             padding-bottom: calc(12px + env(safe-area-inset-bottom));
             display: flex;
             gap: 8px;
@@ -117,9 +115,8 @@
             width: 100%;
         }
         
-        /* 巨大なアクションボタンを横幅いっぱいに均等配置 */
         .action-btn {
-            flex: 1; /* すべてのボタンが同じ比率で広がる */
+            flex: 1;
             height: 100%;
             border-radius: 16px;
             font-weight: 900;
@@ -210,6 +207,24 @@
             border: 2px solid white;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
+
+        .del-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ef4444;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 5;
+        }
     </style>
 </head>
 <body>
@@ -235,12 +250,23 @@
         </div>
 
         <footer>
-            <!-- 4つのメインボタンを均等に横いっぱいに配置 -->
             <button onclick="clearAll()" class="action-btn bg-red-100 text-red-600 border-2 border-red-200">けす</button>
             <button onclick="speakAll()" class="action-btn bg-blue-600 text-white text-5xl">📢</button>
             <button onclick="toggleKeyboard()" id="kb-toggle" class="action-btn bg-green-500 text-white text-xl">文字を打つ</button>
-            <button id="add-btn" onclick="openAddModal()" class="action-btn bg-orange-400 text-white text-5xl">+</button>
+            <button id="add-btn" onclick="openChoiceModal()" class="action-btn bg-orange-400 text-white text-5xl">+</button>
         </footer>
+    </div>
+
+    <!-- 選択モーダル -->
+    <div id="choice-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 class="font-bold mb-6 text-xl text-center">なにを ふやす？</h3>
+            <div class="flex flex-col gap-4">
+                <button onclick="openAddModal()" class="w-full py-6 bg-blue-50 text-blue-600 rounded-2xl font-bold text-xl border-2 border-blue-100">カードを つくる</button>
+                <button onclick="openAddCatModal()" class="w-full py-6 bg-orange-50 text-orange-600 rounded-2xl font-bold text-xl border-2 border-orange-100">しゅるいを つくる</button>
+                <button onclick="closeChoiceModal()" class="w-full py-4 mt-4 bg-gray-100 text-gray-500 rounded-2xl font-bold">やめる</button>
+            </div>
+        </div>
     </div>
 
     <!-- 名前編集モーダル -->
@@ -271,14 +297,27 @@
         </div>
     </div>
 
+    <!-- カテゴリー追加モーダル -->
+    <div id="add-cat-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 class="font-bold mb-4 text-xl text-center">しゅるいを つくる</h3>
+            <label class="block text-sm font-bold text-gray-600 mb-1">しゅるいの なまえ</label>
+            <input type="text" id="new-cat-name" placeholder="例：どうぶつ" class="w-full border-4 border-gray-100 p-4 rounded-xl mb-6 focus:border-blue-400 outline-none text-lg">
+            <div class="flex gap-4">
+                <button onclick="closeAddCatModal()" class="flex-1 py-4 bg-gray-100 rounded-xl font-bold text-gray-600">やめる</button>
+                <button onclick="saveNewCategory()" class="flex-1 py-4 bg-orange-500 text-white rounded-xl font-bold shadow-lg">追加</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        const categories = [
-            { id: 'teacher', name: 'せんせい', color: 'bg-blue-500' },
-            { id: 'greet', name: 'あいさつ', color: 'bg-green-600' },
-            { id: 'toilet', name: 'トイレ', color: 'bg-teal-500' },
-            { id: 'food', name: 'たべもの', color: 'bg-yellow-500' },
-            { id: 'request', name: 'おねがい', color: 'bg-indigo-500' },
-            { id: 'feel', name: 'きもち', color: 'bg-pink-500' }
+        const defaultCategories = [
+            { id: 'teacher', name: 'せんせい', color: 'bg-blue-500', custom: false },
+            { id: 'greet', name: 'あいさつ', color: 'bg-green-600', custom: false },
+            { id: 'toilet', name: 'トイレ', color: 'bg-teal-500', custom: false },
+            { id: 'food', name: 'たべもの', color: 'bg-yellow-500', custom: false },
+            { id: 'request', name: 'おねがい', color: 'bg-indigo-500', custom: false },
+            { id: 'feel', name: 'きもち', color: 'bg-pink-500', custom: false }
         ];
 
         const defaultPhrases = [
@@ -302,8 +341,9 @@
             { cat: 'feel', text: 'いたい', icon: '🤕', custom: false }
         ];
 
-        let phrases = JSON.parse(localStorage.getItem('yubidenwa_v11_phrases')) || defaultPhrases;
-        let voiceNames = JSON.parse(localStorage.getItem('yubidenwa_v11_voice_names')) || {};
+        let categories = JSON.parse(localStorage.getItem('yubidenwa_v12_cats')) || defaultCategories;
+        let phrases = JSON.parse(localStorage.getItem('yubidenwa_v12_phrases')) || defaultPhrases;
+        let voiceNames = JSON.parse(localStorage.getItem('yubidenwa_v12_voice_names')) || {};
         const kanaStd = [['あ','い','う','え','お'],['か','き','く','け','こ'],['さ','し','す','せ','そ'],['た','ち','つ','て','と'],['な','に','ぬ','ね','の'],['は','ひ','ふ','へ','ほ'],['ま','み','む','め','も'],['や','ゆ','よ'],['ら','り','る','れ','ろ'],['わ','を','ん']];
 
         let currentCat = 'teacher';
@@ -328,7 +368,10 @@
         function renderSidebar() {
             const side = document.getElementById('sidebar');
             side.innerHTML = categories.map(c => `
-                <button onclick="setCat('${c.id}')" class="category-btn ${c.color} ${currentCat === c.id ? 'active' : ''}">${c.name}</button>
+                <div class="relative w-full">
+                    <button onclick="setCat('${c.id}')" class="category-btn ${c.color} ${currentCat === c.id ? 'active' : ''}">${c.name}</button>
+                    ${c.custom !== false ? `<button onclick="deleteCategory('${c.id}', event)" class="del-badge">×</button>` : ''}
+                </div>
             `).join('');
         }
 
@@ -399,6 +442,69 @@
             grid.appendChild(card);
         }
 
+        function openChoiceModal() { document.getElementById('choice-modal').classList.remove('hidden'); }
+        function closeChoiceModal() { document.getElementById('choice-modal').classList.add('hidden'); }
+
+        function openAddModal() {
+            closeChoiceModal();
+            const catInfo = categories.find(c => c.id === currentCat);
+            document.getElementById('target-category-label').innerText = `追加さき：${catInfo.name}`;
+            document.getElementById('add-modal').classList.remove('hidden');
+        }
+        function closeAddModal() { document.getElementById('add-modal').classList.add('hidden'); }
+
+        function openAddCatModal() {
+            closeChoiceModal();
+            document.getElementById('add-cat-modal').classList.remove('hidden');
+        }
+        function closeAddCatModal() { document.getElementById('add-cat-modal').classList.add('hidden'); }
+
+        function saveNewCategory() {
+            const name = document.getElementById('new-cat-name').value.trim();
+            if (!name) return;
+            const id = 'custom_' + Date.now();
+            const colors = ['bg-orange-500', 'bg-purple-500', 'bg-red-400', 'bg-cyan-500', 'bg-lime-500'];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            
+            categories.push({ id, name, color, custom: true });
+            localStorage.setItem('yubidenwa_v12_cats', JSON.stringify(categories));
+            document.getElementById('new-cat-name').value = '';
+            closeAddCatModal();
+            renderSidebar();
+            setCat(id);
+        }
+
+        function deleteCategory(id, e) {
+            e.stopPropagation();
+            if (confirm(`「${categories.find(c=>c.id===id).name}」を けしますか？`)) {
+                categories = categories.filter(c => c.id !== id);
+                phrases = phrases.filter(p => p.cat !== id);
+                localStorage.setItem('yubidenwa_v12_cats', JSON.stringify(categories));
+                localStorage.setItem('yubidenwa_v12_phrases', JSON.stringify(phrases));
+                if (currentCat === id) setCat('teacher');
+                else renderSidebar();
+            }
+        }
+
+        function saveNewPhrase() {
+            const text = document.getElementById('new-text').value.trim();
+            const icon = document.getElementById('new-icon').value.trim() || '⭐️';
+            if (!text) return;
+            phrases.push({ cat: currentCat, text, icon, custom: true });
+            localStorage.setItem('yubidenwa_v12_phrases', JSON.stringify(phrases));
+            document.getElementById('new-text').value = '';
+            document.getElementById('new-icon').value = '';
+            closeAddModal();
+            renderCards();
+        }
+
+        function deletePhrase(text, cat, e) {
+            e.stopPropagation();
+            phrases = phrases.filter(p => !(p.text === text && p.cat === cat && p.custom === true));
+            localStorage.setItem('yubidenwa_v12_phrases', JSON.stringify(phrases));
+            renderCards();
+        }
+
         function openVoiceEditModal(idx, e) {
             e.stopPropagation();
             editingVoiceIdx = idx;
@@ -418,7 +524,7 @@
             if (newName) {
                 const v = voices[editingVoiceIdx];
                 voiceNames[v.voiceURI] = newName;
-                localStorage.setItem('yubidenwa_v11_voice_names', JSON.stringify(voiceNames));
+                localStorage.setItem('yubidenwa_v12_voice_names', JSON.stringify(voiceNames));
                 activeVoiceIdx = editingVoiceIdx; 
                 speak(newName);
             }
@@ -433,33 +539,6 @@
                 window.speechSynthesis.speak(u);
                 setTimeout(forceLoadVoices, 200);
             }
-            renderCards();
-        }
-
-        function openAddModal() {
-            const catInfo = categories.find(c => c.id === currentCat);
-            document.getElementById('target-category-label').innerText = `追加さき：${catInfo.name}`;
-            document.getElementById('add-modal').classList.remove('hidden');
-        }
-
-        function closeAddModal() { document.getElementById('add-modal').classList.add('hidden'); }
-
-        function saveNewPhrase() {
-            const text = document.getElementById('new-text').value.trim();
-            const icon = document.getElementById('new-icon').value.trim() || '⭐️';
-            if (!text) return;
-            phrases.push({ cat: currentCat, text, icon, custom: true });
-            localStorage.setItem('yubidenwa_v11_phrases', JSON.stringify(phrases));
-            document.getElementById('new-text').value = '';
-            document.getElementById('new-icon').value = '';
-            closeAddModal();
-            renderCards();
-        }
-
-        function deletePhrase(text, cat, e) {
-            e.stopPropagation();
-            phrases = phrases.filter(p => !(p.text === text && p.cat === cat && p.custom === true));
-            localStorage.setItem('yubidenwa_v11_phrases', JSON.stringify(phrases));
             renderCards();
         }
 
