@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>おしゃべりボード - 文字打ち対応版</title>
+    <title>おしゃべりボード - 画面フィット版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* ページ全体が動かないように固定 */
@@ -37,6 +37,13 @@
             display: flex;
             height: 90px;
             z-index: 20;
+            transition: height 0.2s;
+        }
+
+        /* 横向き時は高さを抑えて中央のエリアを広く確保 */
+        @media (orientation: landscape) {
+            header { height: 75px; padding: 6px; }
+            footer { height: 80px !important; padding: 6px !important; }
         }
 
         .main-container {
@@ -44,6 +51,7 @@
             display: flex;
             overflow: hidden;
             touch-action: none;
+            min-height: 0; /* 縮小を許可 */
         }
 
         /* サイドバーのみ縦スクロールを許可 */
@@ -62,7 +70,7 @@
             -webkit-overflow-scrolling: touch;
         }
         @media (orientation: landscape) {
-            .sidebar { width: 180px; }
+            .sidebar { width: 180px; gap: 8px; padding: 6px; }
         }
 
         .content-area {
@@ -73,6 +81,7 @@
             display: flex;
             flex-direction: column;
             touch-action: none;
+            min-height: 0; /* 縮小を許可 */
         }
 
         .category-btn {
@@ -91,6 +100,9 @@
             align-items: center;
             justify-content: center;
             position: relative;
+        }
+        @media (orientation: landscape) {
+            .category-btn { min-height: 50px; font-size: 1.1rem; }
         }
         .category-btn:active {
             transform: translateY(2px);
@@ -127,6 +139,7 @@
             z-index: 20;
             height: 100px;
             width: 100%;
+            transition: height 0.2s;
         }
         
         .action-btn {
@@ -218,19 +231,29 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
 
         /* キーボード設定 */
+        .keyboard-layout {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            justify-content: space-between;
+            min-height: 0; /* 縮小を許可 */
+        }
+
         .kana-grid {
             display: grid;
             grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(5, minmax(0, 1fr)); /* 行の自動伸縮を許可 */
             direction: rtl;
             gap: 4px;
             flex: 1;
             align-content: stretch;
             touch-action: none;
+            min-height: 0; /* 縮小を許可 */
         }
         .kana-btn {
             width: 100%;
             height: 100%;
-            min-height: 44px;
             background: white;
             border: 2px solid #e2e8f0;
             border-radius: 12px;
@@ -256,11 +279,11 @@
                 <div id="card-grid" class="card-grid-container grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 no-scrollbar"></div>
                 
                 <div id="keyboard-area" class="hidden h-full w-full">
-                    <div class="flex flex-col h-full w-full justify-between">
+                    <div class="keyboard-layout">
                         <div id="kana-container" class="kana-grid"></div>
                         <div class="flex gap-4 mt-2 w-full flex-shrink-0">
-                            <button onclick="removeLastChar()" class="flex-1 bg-gray-200 py-4 rounded-2xl font-bold text-gray-700 text-xl active:bg-gray-300 shadow">1つ消す</button>
-                            <button onclick="addChar(' ')" class="flex-1 bg-gray-100 py-4 rounded-2xl font-bold text-gray-500 text-xl active:bg-gray-200 shadow">空白</button>
+                            <button onclick="removeLastChar()" class="flex-1 bg-gray-200 py-2.5 rounded-xl font-bold text-gray-700 text-lg active:bg-gray-300 shadow">1つ消す</button>
+                            <button onclick="addChar(' ')" class="flex-1 bg-gray-100 py-2.5 rounded-xl font-bold text-gray-500 text-lg active:bg-gray-200 shadow">空白</button>
                         </div>
                     </div>
                 </div>
