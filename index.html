@@ -3,47 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>おしゃべりボード - 画面フィット版</title>
+    <title>おしゃべりボード - 画面フィット完成版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* ページ全体が動かないように固定 */
+        /* ページ全体を完全に1画面に固定し、スクロールや引っ張りを完全禁止 */
         body, html {
-            height: 100%;
+            height: 100dvh;
+            width: 100dvw;
             margin: 0;
             overflow: hidden;
-            position: fixed; /* 全体を画面に固定 */
-            width: 100%;
-            touch-action: none; /* ブラウザ標準のズームやスクロールを無効化 */
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            touch-action: none;
             background-color: #f3f4f6;
             font-family: sans-serif;
             -webkit-user-select: none;
             user-select: none;
-            overscroll-behavior: none; /* 引っ張りスクロールを禁止 */
+            overscroll-behavior: none;
         }
 
+        /* アプリ全体を固定枠として構成 */
         .app-shell {
             display: flex;
             flex-direction: column;
-            height: 100vh;
-            width: 100vw;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 100dvh;
+            width: 100dvw;
+            overflow: hidden;
             touch-action: none;
         }
         
+        /* 上部表示エリア：高さをデバイスに合わせて動的に固定 */
         header {
             flex-shrink: 0;
             background: white;
             border-bottom: 2px solid #e5e7eb;
             padding: 8px;
             display: flex;
-            height: 90px;
+            height: 85px;
             z-index: 20;
-            transition: height 0.2s;
         }
 
-        /* 横向き時は高さを抑えて中央のエリアを広く確保 */
+        /* 横向き時は高さを極限まで抑えてコンテンツエリアを確保 */
         @media (orientation: landscape) {
-            header { height: 75px; padding: 6px; }
-            footer { height: 80px !important; padding: 6px !important; }
+            header { height: 60px; padding: 4px; }
+            footer { height: 75px !important; padding: 4px !important; }
+            .sidebar { width: 170px !important; }
         }
 
         .main-container {
@@ -51,26 +63,23 @@
             display: flex;
             overflow: hidden;
             touch-action: none;
-            min-height: 0; /* 縮小を許可 */
+            min-height: 0; /* 子要素の自動縮小を許可 */
         }
 
-        /* サイドバーのみ縦スクロールを許可 */
+        /* サイドバーのみ安全に縦スクロールを許可 */
         .sidebar {
-            width: 140px; 
+            width: 130px; 
             overflow-y: auto;
             background: #f1f5f9;
             border-right: 2px solid #e5e7eb;
-            padding: 8px;
+            padding: 6px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px;
             height: 100%;
             z-index: 10;
             touch-action: pan-y;
             -webkit-overflow-scrolling: touch;
-        }
-        @media (orientation: landscape) {
-            .sidebar { width: 180px; gap: 8px; padding: 6px; }
         }
 
         .content-area {
@@ -81,16 +90,16 @@
             display: flex;
             flex-direction: column;
             touch-action: none;
-            min-height: 0; /* 縮小を許可 */
+            min-height: 0; /* 子要素の自動縮小を許可 */
         }
 
         .category-btn {
             width: 100%;
-            min-height: 64px;
-            padding: 8px 4px;
-            border-radius: 14px;
+            min-height: 54px;
+            padding: 4px;
+            border-radius: 12px;
             font-weight: 900;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             color: white;
             text-align: center;
             transition: all 0.2s;
@@ -102,7 +111,7 @@
             position: relative;
         }
         @media (orientation: landscape) {
-            .category-btn { min-height: 50px; font-size: 1.1rem; }
+            .category-btn { min-height: 44px; font-size: 1rem; }
         }
         .category-btn:active {
             transform: translateY(2px);
@@ -128,6 +137,7 @@
             touch-action: pan-y;
         }
         
+        /* フッター：100%確実に表示されるよう高さをきっちり固定 */
         footer {
             flex-shrink: 0;
             background: #f1f5f9;
@@ -137,9 +147,8 @@
             display: flex;
             gap: 8px;
             z-index: 20;
-            height: 100px;
+            height: 90px;
             width: 100%;
-            transition: height 0.2s;
         }
         
         .action-btn {
@@ -154,6 +163,10 @@
             justify-content: center;
             transition: all 0.1s;
             white-space: nowrap;
+        }
+        .action-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 1px 0 rgba(0,0,0,0.1);
         }
 
         /* カードグリッド内のみ縦スクロールを許可 */
@@ -230,7 +243,7 @@
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
 
-        /* キーボード設定 */
+        /* キーボードレイアウト全体が絶対に縮まないよう高さを制御 */
         .keyboard-layout {
             display: flex;
             flex-direction: column;
@@ -240,10 +253,11 @@
             min-height: 0; /* 縮小を許可 */
         }
 
+        /* キーボードグリッド：1画面にピッタリ収まるように自動縮小 */
         .kana-grid {
             display: grid;
             grid-template-columns: repeat(10, 1fr);
-            grid-template-rows: repeat(5, minmax(0, 1fr)); /* 行の自動伸縮を許可 */
+            grid-template-rows: repeat(5, minmax(0, 1fr)); 
             direction: rtl;
             gap: 4px;
             flex: 1;
@@ -263,6 +277,11 @@
             align-items: center;
             justify-content: center;
             box-shadow: 0 3px 0 #cbd5e1;
+        }
+        .kana-btn:active {
+            background-color: #dbeafe;
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #cbd5e1;
         }
     </style>
 </head>
@@ -379,9 +398,9 @@
             { cat: 'feel', text: 'いたい', icon: '🤕', custom: false }
         ];
 
-        let categories = JSON.parse(localStorage.getItem('yubidenwa_v20_cats')) || defaultCategories;
-        let phrases = JSON.parse(localStorage.getItem('yubidenwa_v20_phrases')) || defaultPhrases;
-        let voiceNames = JSON.parse(localStorage.getItem('yubidenwa_v20_voice_names')) || {};
+        let categories = JSON.parse(localStorage.getItem('yubidenwa_v19_cats')) || defaultCategories;
+        let phrases = JSON.parse(localStorage.getItem('yubidenwa_v19_phrases')) || defaultPhrases;
+        let voiceNames = JSON.parse(localStorage.getItem('yubidenwa_v19_voice_names')) || {};
         const kanaStd = [['あ','い','う','え','お'],['か','き','く','け','こ'],['さ','し','す','せ','そ'],['た','ち','つ','て','と'],['な','に','ぬ','ね','の'],['は','ひ','ふ','へ','ほ'],['ま','み','む','め','も'],['や','ゆ','よ'],['ら','り','る','れ','ろ'],['わ','を','ん']];
 
         let currentCat = 'teacher';
@@ -546,7 +565,7 @@
             if (!name) return;
             const id = 'custom_' + Date.now();
             categories.push({ id, name, color: 'bg-indigo-500', custom: true });
-            localStorage.setItem('yubidenwa_v20_cats', JSON.stringify(categories));
+            localStorage.setItem('yubidenwa_v19_cats', JSON.stringify(categories));
             document.getElementById('new-cat-name').value = '';
             closeAddCatModal();
             renderSidebar();
@@ -558,8 +577,8 @@
             if (confirm(`「${categories.find(c=>c.id===id).name}」を けしますか？`)) {
                 categories = categories.filter(c => c.id !== id);
                 phrases = phrases.filter(p => p.cat !== id);
-                localStorage.setItem('yubidenwa_v20_cats', JSON.stringify(categories));
-                localStorage.setItem('yubidenwa_v20_phrases', JSON.stringify(phrases));
+                localStorage.setItem('yubidenwa_v19_cats', JSON.stringify(categories));
+                localStorage.setItem('yubidenwa_v19_phrases', JSON.stringify(phrases));
                 if (currentCat === id) setCat('teacher');
                 else renderSidebar();
             }
@@ -570,7 +589,7 @@
             const icon = document.getElementById('new-icon').value.trim() || '⭐️';
             if (!text) return;
             phrases.push({ cat: currentCat, text, icon, custom: true });
-            localStorage.setItem('yubidenwa_v20_phrases', JSON.stringify(phrases));
+            localStorage.setItem('yubidenwa_v19_phrases', JSON.stringify(phrases));
             document.getElementById('new-text').value = '';
             document.getElementById('new-icon').value = '';
             closeAddModal();
@@ -580,7 +599,7 @@
         function deletePhrase(text, cat, e) {
             e.stopPropagation();
             phrases = phrases.filter(p => !(p.text === text && p.cat === cat && p.custom === true));
-            localStorage.setItem('yubidenwa_v20_phrases', JSON.stringify(phrases));
+            localStorage.setItem('yubidenwa_v19_phrases', JSON.stringify(phrases));
             renderCards();
         }
 
@@ -598,7 +617,9 @@
             if (newName) {
                 const v = voices[editingVoiceIdx];
                 voiceNames[v.voiceURI] = newName;
-                localStorage.setItem('yubidenwa_v20_voice_names', JSON.stringify(voiceNames));
+                localStorage.setItem('yubidenwa_v19_voice_names', JSON.stringify(voiceNames));
+                activeVoiceIdx = editingVoiceIdx; 
+                speak(newName);
             }
             closeVoiceModal();
             renderCards();
