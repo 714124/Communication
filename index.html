@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>おしゃべりボード - 画面フィット完成版</title>
+    <title>おしゃべりボード - タップ最適化版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* ページ全体を完全に1画面に固定し、スクロールや引っ張りを完全禁止 */
@@ -68,18 +68,31 @@
 
         /* サイドバーのみ安全に縦スクロールを許可 */
         .sidebar {
-            width: 130px; 
+            width: 140px; 
             overflow-y: auto;
             background: #f1f5f9;
             border-right: 2px solid #e5e7eb;
-            padding: 6px;
+            padding: 8px;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 12px;
             height: 100%;
             z-index: 10;
             touch-action: pan-y;
             -webkit-overflow-scrolling: touch;
+        }
+
+        /* 各カテゴリーのラッパーを均等に縦引き伸ばし */
+        .sidebar > div {
+            flex: 1;
+            min-height: 60px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media (orientation: landscape) {
+            .sidebar { width: 180px; }
+            .sidebar > div { min-height: 44px; }
         }
 
         .content-area {
@@ -91,11 +104,18 @@
             flex-direction: column;
             touch-action: none;
             min-height: 0; /* 子要素の自動縮小を許可 */
+            transition: padding 0.1s ease;
         }
 
+        /* キーボード表示時は白枠ギリギリまで広げる */
+        .content-area.has-kb {
+            padding: 3px !important;
+        }
+
+        /* カテゴリーボタンを高さ100%にして引き伸ばす */
         .category-btn {
             width: 100%;
-            min-height: 54px;
+            height: 100%;
             padding: 4px;
             border-radius: 12px;
             font-weight: 900;
@@ -111,7 +131,7 @@
             position: relative;
         }
         @media (orientation: landscape) {
-            .category-btn { min-height: 44px; font-size: 1rem; }
+            .category-btn { font-size: 1rem; }
         }
         .category-btn:active {
             transform: translateY(2px);
@@ -243,7 +263,7 @@
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
 
-        /* キーボードレイアウト全体が絶対に縮まないよう高さを制御 */
+        /* キーボード設定 */
         .keyboard-layout {
             display: flex;
             flex-direction: column;
@@ -253,11 +273,9 @@
             min-height: 0; /* 縮小を許可 */
         }
 
-        /* キーボードグリッド：1画面にピッタリ収まるように自動縮小 */
         .kana-grid {
             display: grid;
             grid-template-columns: repeat(10, 1fr);
-            grid-template-rows: repeat(5, minmax(0, 1fr)); 
             direction: rtl;
             gap: 4px;
             flex: 1;
@@ -272,16 +290,27 @@
             border: 2px solid #e2e8f0;
             border-radius: 12px;
             font-weight: 900;
-            font-size: clamp(0.9rem, 3.5vh, 1.8rem);
+            font-size: clamp(1.1rem, 4.2vh, 2.2rem); /* 文字サイズを大きく */
             display: flex;
             align-items: center;
             justify-content: center;
             box-shadow: 0 3px 0 #cbd5e1;
+            transition: background-color 0.05s, transform 0.05s;
         }
         .kana-btn:active {
             background-color: #dbeafe;
             transform: translateY(2px);
             box-shadow: 0 1px 0 #cbd5e1;
+        }
+        /* 補助キー（濁点、小書きなど）は認識しやすいよう少し色を変更 */
+        .kana-btn-sub {
+            background-color: #f8fafc;
+            border-color: #cbd5e1;
+            color: #3b82f6;
+            box-shadow: 0 3px 0 #94a3b8;
+        }
+        .kana-btn-sub:active {
+            background-color: #eff6ff;
         }
     </style>
 </head>
@@ -300,9 +329,10 @@
                 <div id="keyboard-area" class="hidden h-full w-full">
                     <div class="keyboard-layout">
                         <div id="kana-container" class="kana-grid"></div>
-                        <div class="flex gap-4 mt-2 w-full flex-shrink-0">
-                            <button onclick="removeLastChar()" class="flex-1 bg-gray-200 py-2.5 rounded-xl font-bold text-gray-700 text-lg active:bg-gray-300 shadow">1つ消す</button>
-                            <button onclick="addChar(' ')" class="flex-1 bg-gray-100 py-2.5 rounded-xl font-bold text-gray-500 text-lg active:bg-gray-200 shadow">空白</button>
+                        <!-- 余白(mt-2 → mt-1.5)とボタンパディング(py-2.5 → py-2)を縮小して、上部の五十音グリッドを下に広げました -->
+                        <div class="flex gap-4 mt-1.5 w-full flex-shrink-0">
+                            <button onclick="removeLastChar()" class="flex-1 bg-gray-200 py-2 rounded-xl font-bold text-gray-700 text-lg active:bg-gray-300 shadow">1つ消す</button>
+                            <button onclick="addChar(' ')" class="flex-1 bg-gray-100 py-2 rounded-xl font-bold text-gray-500 text-lg active:bg-gray-200 shadow">空白</button>
                         </div>
                     </div>
                 </div>
@@ -401,7 +431,20 @@
         let categories = JSON.parse(localStorage.getItem('yubidenwa_v19_cats')) || defaultCategories;
         let phrases = JSON.parse(localStorage.getItem('yubidenwa_v19_phrases')) || defaultPhrases;
         let voiceNames = JSON.parse(localStorage.getItem('yubidenwa_v19_voice_names')) || {};
-        const kanaStd = [['あ','い','う','え','お'],['か','き','く','け','こ'],['さ','し','す','せ','そ'],['た','ち','つ','て','と'],['な','に','ぬ','ね','の'],['は','ひ','ふ','へ','ほ'],['ま','み','む','め','も'],['や','ゆ','よ'],['ら','り','る','れ','ろ'],['わ','を','ん']];
+        
+        // 各列（カラム）がすべて5要素になるように空文字列を追加してグリッドラインを完全に揃えます
+        const kanaStd = [
+            ['あ','い','う','え','お'],
+            ['か','き','く','け','こ'],
+            ['さ','し','す','せ','そ'],
+            ['た','ち','つ','て','と'],
+            ['な','に','ぬ','ね','の'],
+            ['は','ひ','ふ','へ','ほ'],
+            ['ま','み','む','め','も'],
+            ['や','゛','ゆ','゜','よ'], // 濁点(゛)と半濁点(゜)をここに配置！
+            ['ら','り','る','れ','ろ'],
+            ['わ','を','ん','小','ー']  // 大小変換(小)と伸ばし棒(ー)をここに配置！
+        ];
 
         let currentCat = 'teacher';
         let voices = [];
@@ -424,7 +467,7 @@
             // 引っ張りスクロール（バウンス）をスクリプトでも完全に防止
             document.addEventListener('touchmove', function(e) {
                 if (e.target.closest('.sidebar, .display-box, .card-grid-container')) {
-                    return; // 許可されたスクロールエリアはOK
+                    return; 
                 }
                 e.preventDefault();
             }, { passive: false });
@@ -446,6 +489,7 @@
             document.getElementById('card-grid').classList.remove('hidden');
             document.getElementById('kb-toggle').innerText = "文字を打つ";
             document.getElementById('speak-btn').classList.add('hidden');
+            document.querySelector('.content-area').classList.remove('has-kb');
             renderSidebar();
             renderCards();
         }
@@ -504,11 +548,15 @@
             const area = document.getElementById('keyboard-area');
             const grid = document.getElementById('card-grid');
             const speakBtn = document.getElementById('speak-btn');
+            const contentArea = document.querySelector('.content-area');
             const isHidden = area.classList.contains('hidden');
             
             area.classList.toggle('hidden', !isHidden);
             grid.classList.toggle('hidden', isHidden);
             speakBtn.classList.toggle('hidden', !isHidden);
+
+            // キーボード表示時は白枠ギリギリまで広げるためクラスを付与
+            contentArea.classList.toggle('has-kb', isHidden);
 
             if (isHidden) renderKb();
             document.getElementById('kb-toggle').innerText = isHidden ? "カードへ" : "文字を打つ";
@@ -518,15 +566,89 @@
             const cont = document.getElementById('kana-container');
             cont.innerHTML = kanaStd.map(col => `
                 <div class="flex flex-col gap-1.5 h-full">
-                    ${col.map(char => `<button onclick="addChar('${char}')" class="kana-btn">${char}</button>`).join('')}
+                    ${col.map(char => {
+                        const isSubKey = ['゛', '゜', '小', 'ー'].includes(char);
+                        const btnClass = isSubKey ? 'kana-btn kana-btn-sub flex-1' : 'kana-btn flex-1';
+                        return `<button onclick="addChar('${char}')" class="${btnClass}">${char}</button>`;
+                    }).join('')}
                 </div>
             `).join('');
         }
 
+        function applyDakuten() {
+            if (selected.length === 0) return;
+            const lastIdx = selected.length - 1;
+            const char = selected[lastIdx];
+            
+            const map = {
+                'か':'が', 'き':'ぎ', 'く':'ぐ', 'け':'げ', 'こ':'ご',
+                'さ':'ざ', 'し':'じ', 'す':'ず', 'せ':'ぜ', 'そ':'ぞ',
+                'た':'だ', 'ち':'ぢ', 'つ':'づ', 'て':'で', 'と':'ど',
+                'は':'ば', 'ひ':'び', 'ふ':'ぶ', 'へ':'べ', 'ほ':'ぼ',
+                'が':'か', 'ぎ':'き', 'ぐ':'く', 'げ':'け', 'ご':'こ',
+                'ざ':'さ', 'じ':'し', 'ず':'す', 'ぜ':'せ', 'ぞ':'そ',
+                'だ':'た', 'ぢ':'ち', 'づ':'つ', 'で':'て', 'ど':'と',
+                'ば':'は', 'び':'ひ', 'ぶ':'ふ', 'べ':'へ', 'ぼ':'ほ'
+            };
+            
+            if (map[char]) {
+                selected[lastIdx] = map[char];
+                updateDisplay();
+                speak(map[char]);
+            }
+        }
+
+        function applyHandakuten() {
+            if (selected.length === 0) return;
+            const lastIdx = selected.length - 1;
+            const char = selected[lastIdx];
+            
+            const map = {
+                'は':'ぱ', 'ひ':'ぴ', 'ふ':'ぷ', 'へ':'ぺ', 'ほ':'ぽ',
+                'ば':'ぱ', 'び':'ぴ', 'ぶ':'ぷ', 'べ':'ぺ', 'ぼ':'ぽ',
+                'ぱ':'は', 'ぴ':'ひ', 'ぷ':'ふ', 'ぺ':'へ', 'ぽ':'ほ'
+            };
+            
+            if (map[char]) {
+                selected[lastIdx] = map[char];
+                updateDisplay();
+                speak(map[char]);
+            }
+        }
+
+        function applySmall() {
+            if (selected.length === 0) return;
+            const lastIdx = selected.length - 1;
+            const char = selected[lastIdx];
+            
+            const map = {
+                'あ':'ぁ', 'い':'ぃ', 'う':'ぅ', 'え':'ぇ', 'お':'ぉ',
+                'や':'ゃ', 'ゆ':'ゅ', 'よ':'ょ',
+                'つ':'っ', 'わ':'ゎ',
+                'ぁ':'あ', 'ぃ':'い', 'ぅ':'う', 'ぇ':'え', 'ぉ':'お',
+                'ゃ':'や', 'ゅ':'ゆ', 'ょ':'よ',
+                'っ':'つ', 'ゎ':'わ'
+            };
+            
+            if (map[char]) {
+                selected[lastIdx] = map[char];
+                updateDisplay();
+                speak(map[char]);
+            }
+        }
+
         function addChar(c) {
-            selected.push(c); 
-            updateDisplay();
-            speak(c);
+            if (c === '゛') {
+                applyDakuten();
+            } else if (c === '゜') {
+                applyHandakuten();
+            } else if (c === '小') {
+                applySmall();
+            } else {
+                selected.push(c); 
+                updateDisplay();
+                speak(c);
+            }
         }
 
         function removeLastChar() {
