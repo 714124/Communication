@@ -408,26 +408,8 @@
         </div>
     </div>
 
-    <!-- Firebase / Firestore & 画面表示の一本化スクリプト -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // 環境設定の取得
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "",
-            authDomain: "dummy.firebaseapp.com",
-            projectId: "dummy",
-            storageBucket: "dummy.appspot.com",
-            messagingSenderId: "dummy",
-            appId: "dummy"
-        };
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
+    <!-- 100%自己完結型のオフライン動作スクリプト -->
+    <script>
         const defaultCategories = [
             { id: 'teacher', name: 'せんせい', color: 'bg-blue-500', custom: false },
             { id: 'greet', name: 'あいさつ', color: 'bg-green-600', custom: false },
@@ -479,18 +461,9 @@
         let activeVoiceIdx = 0;
         let selected = [];
         let editingVoiceIdx = null;
-        let user = null;
         let categoryIdToDelete = null;
 
-        const initAuth = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
-            }
-        };
-
-        // 過去のすべてのバージョンキー（v6〜v25）からデータを自動引き継ぎする超強力ロジック
+        // 過去のすべてのバージョンキー（v6〜v25）からデータをiPadから自動引き継ぎ
         function getLatestLocalData(keySuffix, defaultVal) {
             for (let v = 25; v >= 6; v--) {
                 try {
@@ -498,7 +471,7 @@
                     if (data) {
                         const parsed = JSON.parse(data);
                         if (parsed && (Array.isArray(parsed) ? parsed.length > 0 : Object.keys(parsed).length > 0)) {
-                            console.log(`バージョン v${v} からデータを完全に引き継ぎました: ${keySuffix}`);
+                            console.log(`安定版にデータを引き継ぎ完了: ${keySuffix}`);
                             return parsed;
                         }
                     }
@@ -510,15 +483,50 @@
         }
 
         // iPad側のバックアップデータを最優先ロード
-        function loadLocalBackup() {
-            categories = getLatestLocalData('cats', defaultCategories);
-            phrases = getLatestLocalData('phrases', defaultPhrases);
-            voiceNames = getLatestLocalData('voice_names', {});
+        function loadLocalData() {
+            // まずは今回の安定キーを読み込み、なければ過去を辿る
+            const savedCats = localStorage.getItem('yubidenwa_stable_cats');
+            const savedPhrases = localStorage.getItem('yubidenwa_stable_phrases');
+            const savedVoices = localStorage.getItem('yubidenwa_stable_voice_names');
+
+            if (savedCats) {
+                categories = JSON.parse(savedCats);
+            } else {
+                categories = getLatestLocalData('cats', defaultCategories);
+            }
+
+            if (savedPhrases) {
+                phrases = JSON.parse(savedPhrases);
+            } else {
+                phrases = getLatestLocalData('phrases', defaultPhrases);
+            }
+
+            if (savedVoices) {
+                voiceNames = JSON.parse(savedVoices);
+            } else {
+                voiceNames = getLatestLocalData('voice_names', {});
+            }
+        }
+
+        // データを即座に保存する
+        function saveLocalData() {
+            try {
+                localStorage.setItem('yubidenwa_stable_cats', JSON.stringify(categories));
+                localStorage.setItem('yubidenwa_stable_phrases', JSON.stringify(phrases));
+                localStorage.setItem('yubidenwa_stable_voice_names', JSON.stringify(voiceNames));
+                
+                // 念のため、これまで使っていたキーにもバックアップ保存
+                localStorage.setItem('yubidenwa_v20_cats', JSON.stringify(categories));
+                localStorage.setItem('yubidenwa_v20_phrases', JSON.stringify(phrases));
+                localStorage.setItem('yubidenwa_v20_voice_names', JSON.stringify(voiceNames));
+            } catch (e) {
+                console.error("保存失敗:", e);
+            }
         }
 
         function init() {
-            // 起動時にまず1ミリ秒で即データを復元
-            loadLocalBackup();
+            // アプリ起動直後に即座にデータを復元
+            loadLocalData();
             renderSidebar();
             
             const loadVoices = () => {
@@ -530,20 +538,6 @@
             }
             loadVoices(); 
             renderCards();
-
-            // Firebaseのログイン初期化
-            initAuth()
-                .then(() => {
-                    onAuthStateChanged(auth, (u) => {
-                        user = u;
-                        if (user) {
-                            setupSync();
-                        }
-                    });
-                })
-                .catch((err) => {
-                    console.error("ログイン初期化エラー:", err);
-                });
             
             document.addEventListener('touchmove', function(e) {
                 if (e.target.closest('.sidebar, .display-box, .card-grid-container')) {
@@ -551,62 +545,6 @@
                 }
                 e.preventDefault();
             }, { passive: false });
-        }
-
-        // Firestoreとのリアルタイム同期
-        function setupSync() {
-            if (!user) return;
-            const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'user_board');
-            
-            onSnapshot(userDocRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    // クラウドに有効なデータがあればそれを採用
-                    if (data.categories && data.categories.length > 0) categories = data.categories;
-                    if (data.phrases && data.phrases.length > 0) phrases = data.phrases;
-                    voiceNames = data.voiceNames || {};
-                    
-                    // キャッシュを更新
-                    saveLocalCache();
-                } else {
-                    // クラウド上にデータがない場合は、iPadの最新データをクラウドへ送信
-                    saveToCloud();
-                }
-                renderSidebar();
-                renderCards();
-            }, (error) => {
-                console.error("同期に失敗しましたが、ローカルデータは安全に保護されています:", error);
-                renderSidebar();
-                renderCards();
-            });
-        }
-
-        // ローカルキャッシュの更新
-        function saveLocalCache() {
-            try {
-                localStorage.setItem('yubidenwa_v20_cats', JSON.stringify(categories));
-                localStorage.setItem('yubidenwa_v20_phrases', JSON.stringify(phrases));
-                localStorage.setItem('yubidenwa_v20_voice_names', JSON.stringify(voiceNames));
-            } catch (e) {
-                console.error("ローカルキャッシュ保存エラー:", e);
-            }
-        }
-
-        // クラウド & ローカルのダブル保存
-        async function saveToCloud() {
-            saveLocalCache();
-
-            if (!user) return;
-            const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'user_board');
-            try {
-                await setDoc(userDocRef, {
-                    categories: categories,
-                    phrases: phrases,
-                    voiceNames: voiceNames
-                });
-            } catch (error) {
-                console.error("同期失敗:", error);
-            }
         }
 
         function renderSidebar() {
@@ -821,7 +759,7 @@
             if (!name) return;
             const id = 'custom_' + Date.now();
             categories.push({ id, name, color: 'bg-indigo-500', custom: true });
-            saveToCloud();
+            saveLocalData();
             document.getElementById('new-cat-name').value = '';
             closeAddCatModal();
             renderSidebar();
@@ -845,7 +783,7 @@
             if (!categoryIdToDelete) return;
             categories = categories.filter(c => c.id !== categoryIdToDelete);
             phrases = phrases.filter(p => p.cat !== categoryIdToDelete);
-            saveToCloud();
+            saveLocalData();
             if (currentCat === categoryIdToDelete) setCat('teacher');
             else renderSidebar();
             closeDeleteConfirmModal();
@@ -856,7 +794,7 @@
             const icon = document.getElementById('new-icon').value.trim() || '⭐️';
             if (!text) return;
             phrases.push({ cat: currentCat, text, icon, custom: true });
-            saveToCloud();
+            saveLocalData();
             document.getElementById('new-text').value = '';
             document.getElementById('new-icon').value = '';
             closeAddModal();
@@ -866,7 +804,7 @@
         function deletePhrase(text, cat, e) {
             e.stopPropagation();
             phrases = phrases.filter(p => !(p.text === text && p.cat === cat && p.custom === true));
-            saveToCloud();
+            saveLocalData();
             renderCards();
         }
 
@@ -884,7 +822,7 @@
             if (newName) {
                 const v = voices[editingVoiceIdx];
                 voiceNames[v.voiceURI] = newName;
-                saveToCloud();
+                saveLocalData();
                 activeVoiceIdx = editingVoiceIdx; 
                 speak(newName);
             }
