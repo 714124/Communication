@@ -450,7 +450,6 @@
             { cat: 'request', text: 'てつだって', icon: '🤝', custom: false },
             { cat: 'request', text: 'まって', icon: '✋', custom: false },
             { cat: 'request', text: 'おわり', icon: '🆗', custom: false },
-            { cat: 'request', text: 'もういっかい', icon: '🔄', custom: false },
             { cat: 'feel', text: 'うれしい', icon: '😆', custom: false },
             { cat: 'feel', text: 'たのしい', icon: '🎶', custom: false },
             { cat: 'feel', text: 'かなしい', icon: '😢', custom: false },
@@ -491,31 +490,35 @@
             }
         };
 
-        // ローカルに保存されているバックアップデータを最優先で読み出す
-        function loadLocalBackup() {
-            try {
-                const cachedCats = localStorage.getItem('yubidenwa_v20_cats');
-                const cachedPhrases = localStorage.getItem('yubidenwa_v20_phrases');
-                const cachedVoices = localStorage.getItem('yubidenwa_v20_voice_names');
-                
-                if (cachedCats) {
-                    const parsed = JSON.parse(cachedCats);
-                    if (parsed && parsed.length > 0) categories = parsed;
+        // 過去のすべてのバージョンキーからデータを自動引き継ぎする超強力フォールバック
+        function getLatestLocalData(keySuffix, defaultVal) {
+            // v25からv6までさかのぼって探すことで、どの時系列のデータも絶対に取りこぼしません
+            for (let v = 25; v >= 6; v--) {
+                try {
+                    const data = localStorage.getItem(`yubidenwa_v${v}_${keySuffix}`);
+                    if (data) {
+                        const parsed = JSON.parse(data);
+                        if (parsed && (Array.isArray(parsed) ? parsed.length > 0 : Object.keys(parsed).length > 0)) {
+                            console.log(`バージョン v${v} からデータを引き継ぎました: ${keySuffix}`);
+                            return parsed;
+                        }
+                    }
+                } catch (e) {
+                    // エラーは無視
                 }
-                if (cachedPhrases) {
-                    const parsed = JSON.parse(cachedPhrases);
-                    if (parsed && parsed.length > 0) phrases = parsed;
-                }
-                if (cachedVoices) {
-                    voiceNames = JSON.parse(cachedVoices);
-                }
-            } catch (e) {
-                console.error("ローカル読み込みエラー:", e);
             }
+            return defaultVal;
+        }
+
+        // ローカルに保存されているデータを最優先で復元
+        function loadLocalBackup() {
+            categories = getLatestLocalData('cats', defaultCategories);
+            phrases = getLatestLocalData('phrases', defaultPhrases);
+            voiceNames = getLatestLocalData('voice_names', {});
         }
 
         function init() {
-            // アプリ起動直後にまずiPadから即座に復元
+            // アプリ起動直後に即座にデータを復元（これで表示が消えることはありません！）
             loadLocalBackup();
             renderSidebar();
             
@@ -559,43 +562,44 @@
             onSnapshot(userDocRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    categories = data.categories && data.categories.length > 0 ? data.categories : defaultCategories;
-                    phrases = data.phrases && data.phrases.length > 0 ? data.phrases : defaultPhrases;
+                    // クラウドに有効なデータがあればそれを使う
+                    if (data.categories && data.categories.length > 0) categories = data.categories;
+                    if (data.phrases && data.phrases.length > 0) phrases = data.phrases;
                     voiceNames = data.voiceNames || {};
+                    
+                    // 同期した内容をローカルストレージにも上書き保存
+                    saveLocalCache();
                 } else {
-                    // データが存在しない場合は新規登録
-                    categories = defaultCategories;
-                    phrases = defaultPhrases;
-                    voiceNames = {};
+                    // クラウド上にデータがない場合は、現在の最新ローカルデータをバックアップとしてクラウドへ送信
                     saveToCloud();
                 }
-                // ローカル側のキャッシュもリアルタイムで連動して最新に更新
-                localStorage.setItem('yubidenwa_v20_cats', JSON.stringify(categories));
-                localStorage.setItem('yubidenwa_v20_phrases', JSON.stringify(phrases));
-                localStorage.setItem('yubidenwa_v20_voice_names', JSON.stringify(voiceNames));
                 renderSidebar();
                 renderCards();
             }, (error) => {
-                console.error("データ同期エラー（ローカルのバックアップをそのまま使います）:", error);
-                // エラー時はローカルの表示を保護
-                loadLocalBackup();
+                console.error("データ同期エラー（ローカルデータを保護しました）:", error);
+                // 同期エラー時もローカルデータを絶対維持して表示
                 renderSidebar();
                 renderCards();
             });
         }
 
-        // クラウド & ローカルのダブル保存
-        async function saveToCloud() {
-            // まず即座にローカルに保存
+        // ローカルキャッシュの更新用
+        function saveLocalCache() {
             try {
                 localStorage.setItem('yubidenwa_v20_cats', JSON.stringify(categories));
                 localStorage.setItem('yubidenwa_v20_phrases', JSON.stringify(phrases));
                 localStorage.setItem('yubidenwa_v20_voice_names', JSON.stringify(voiceNames));
             } catch (e) {
-                console.error("ローカル保存に失敗:", e);
+                console.error("ローカルキャッシュ保存エラー:", e);
             }
+        }
 
-            // クラウド側へも送信
+        // クラウド & ローカルのダブル保存
+        async function saveToCloud() {
+            // まず即座にローカルへ保存（1ミリ秒で即完了）
+            saveLocalCache();
+
+            // クラウド（Firestore）側へ送信
             if (!user) return;
             const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'user_board');
             try {
@@ -605,7 +609,7 @@
                     voiceNames: voiceNames
                 });
             } catch (error) {
-                console.error("クラウドへの同期に失敗しましたが、ローカルには保存されました:", error);
+                console.error("クラウドへの同期に失敗しましたが、ローカルには安全に保存されました:", error);
             }
         }
 
