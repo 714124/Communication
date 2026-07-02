@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>おしゃべりボード - クラウド保存版</title>
+    <title>おしゃべりボード - 確実保存版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* ページ全体を完全に1画面に固定し、スクロールや引っ張りを完全禁止 */
@@ -491,7 +491,34 @@
             }
         };
 
+        // ローカルに保存されているバックアップデータを最優先で読み出す
+        function loadLocalBackup() {
+            try {
+                const cachedCats = localStorage.getItem('yubidenwa_v20_cats');
+                const cachedPhrases = localStorage.getItem('yubidenwa_v20_phrases');
+                const cachedVoices = localStorage.getItem('yubidenwa_v20_voice_names');
+                
+                if (cachedCats) {
+                    const parsed = JSON.parse(cachedCats);
+                    if (parsed && parsed.length > 0) categories = parsed;
+                }
+                if (cachedPhrases) {
+                    const parsed = JSON.parse(cachedPhrases);
+                    if (parsed && parsed.length > 0) phrases = parsed;
+                }
+                if (cachedVoices) {
+                    voiceNames = JSON.parse(cachedVoices);
+                }
+            } catch (e) {
+                console.error("ローカル読み込みエラー:", e);
+            }
+        }
+
         function init() {
+            // アプリ起動直後にまずiPadから即座に復元
+            loadLocalBackup();
+            renderSidebar();
+            
             const loadVoices = () => {
                 voices = window.speechSynthesis.getVoices().filter(v => v.lang.includes('ja'));
                 renderCards();
@@ -500,7 +527,6 @@
                 window.speechSynthesis.onvoiceschanged = loadVoices;
             }
             loadVoices(); 
-            renderSidebar();
             renderCards();
 
             // Firebaseのログイン初期化
@@ -533,8 +559,8 @@
             onSnapshot(userDocRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    categories = data.categories || defaultCategories;
-                    phrases = data.phrases || defaultPhrases;
+                    categories = data.categories && data.categories.length > 0 ? data.categories : defaultCategories;
+                    phrases = data.phrases && data.phrases.length > 0 ? data.phrases : defaultPhrases;
                     voiceNames = data.voiceNames || {};
                 } else {
                     // データが存在しない場合は新規登録
@@ -543,15 +569,33 @@
                     voiceNames = {};
                     saveToCloud();
                 }
+                // ローカル側のキャッシュもリアルタイムで連動して最新に更新
+                localStorage.setItem('yubidenwa_v20_cats', JSON.stringify(categories));
+                localStorage.setItem('yubidenwa_v20_phrases', JSON.stringify(phrases));
+                localStorage.setItem('yubidenwa_v20_voice_names', JSON.stringify(voiceNames));
                 renderSidebar();
                 renderCards();
             }, (error) => {
-                console.error("データ同期エラー:", error);
+                console.error("データ同期エラー（ローカルのバックアップをそのまま使います）:", error);
+                // エラー時はローカルの表示を保護
+                loadLocalBackup();
+                renderSidebar();
+                renderCards();
             });
         }
 
-        // クラウドへ保存
+        // クラウド & ローカルのダブル保存
         async function saveToCloud() {
+            // まず即座にローカルに保存
+            try {
+                localStorage.setItem('yubidenwa_v20_cats', JSON.stringify(categories));
+                localStorage.setItem('yubidenwa_v20_phrases', JSON.stringify(phrases));
+                localStorage.setItem('yubidenwa_v20_voice_names', JSON.stringify(voiceNames));
+            } catch (e) {
+                console.error("ローカル保存に失敗:", e);
+            }
+
+            // クラウド側へも送信
             if (!user) return;
             const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'user_board');
             try {
@@ -561,7 +605,7 @@
                     voiceNames: voiceNames
                 });
             } catch (error) {
-                console.error("保存失敗:", error);
+                console.error("クラウドへの同期に失敗しましたが、ローカルには保存されました:", error);
             }
         }
 
@@ -598,6 +642,7 @@
                 if (voices.length === 0) {
                     grid.innerHTML = `<div class="col-span-full p-8 text-center"><button onclick="forceLoadVoices()" class="bg-blue-100 text-blue-600 px-8 py-8 rounded-2xl font-bold text-xl active:scale-95">こえを よみこむ</button></div>`;
                 } else {
+                    // 全ての「声」をカードとして縦方向に並べる
                     voices.forEach((v, i) => {
                         const card = document.createElement('div');
                         card.className = `card ${activeVoiceIdx === i ? 'bg-blue-600 text-white ring-4 ring-blue-200' : 'bg-white text-blue-600'}`;
@@ -610,6 +655,7 @@
                         card.onclick = () => { activeVoiceIdx = i; renderCards(); speak(dName); };
                         grid.appendChild(card);
                     });
+                    // せんせいカテゴリに追加されたメッセージ
                     const list = phrases.filter(p => p.cat === 'teacher');
                     list.forEach(p => renderPhraseCard(p, grid));
                 }
