@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>おしゃべりボード - タップ最適化版</title>
+    <title>おしゃべりボード - クラウド保存版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* ページ全体を完全に1画面に固定し、スクロールや引っ張りを完全禁止 */
@@ -66,7 +66,7 @@
             min-height: 0; /* 子要素の自動縮小を許可 */
         }
 
-        /* サイドバーのみ安全に縦スクロールを許可 */
+        /* サイドバー：縦に100%広げて中に均等配置する */
         .sidebar {
             width: 140px; 
             overflow-y: auto;
@@ -80,19 +80,20 @@
             z-index: 10;
             touch-action: pan-y;
             -webkit-overflow-scrolling: touch;
+            min-height: 0; /* 縮小分配を許可 */
         }
 
-        /* 各カテゴリーのラッパーを均等に縦引き伸ばし */
+        /* 各カテゴリーのラッパーを親の高さ全体に均等に引き伸ばす */
         .sidebar > div {
-            flex: 1;
-            min-height: 60px;
+            flex: 1 1 0%;
+            min-height: 50px; /* 最低の高さを保ちつつ伸縮 */
             display: flex;
             flex-direction: column;
         }
 
         @media (orientation: landscape) {
-            .sidebar { width: 180px; }
-            .sidebar > div { min-height: 44px; }
+            .sidebar { width: 180px; gap: 8px; padding: 6px; }
+            .sidebar > div { min-height: 38px; }
         }
 
         .content-area {
@@ -119,7 +120,7 @@
             padding: 4px;
             border-radius: 12px;
             font-weight: 900;
-            font-size: 1.1rem;
+            font-size: 1.2rem;
             color: white;
             text-align: center;
             transition: all 0.2s;
@@ -131,7 +132,7 @@
             position: relative;
         }
         @media (orientation: landscape) {
-            .category-btn { font-size: 1rem; }
+            .category-btn { font-size: 1.1rem; }
         }
         .category-btn:active {
             transform: translateY(2px);
@@ -329,7 +330,6 @@
                 <div id="keyboard-area" class="hidden h-full w-full">
                     <div class="keyboard-layout">
                         <div id="kana-container" class="kana-grid"></div>
-                        <!-- 余白(mt-2 → mt-1.5)とボタンパディング(py-2.5 → py-2)を縮小して、上部の五十音グリッドを下に広げました -->
                         <div class="flex gap-4 mt-1.5 w-full flex-shrink-0">
                             <button onclick="removeLastChar()" class="flex-1 bg-gray-200 py-2 rounded-xl font-bold text-gray-700 text-lg active:bg-gray-300 shadow">1つ消す</button>
                             <button onclick="addChar(' ')" class="flex-1 bg-gray-100 py-2 rounded-xl font-bold text-gray-500 text-lg active:bg-gray-200 shadow">空白</button>
@@ -347,7 +347,7 @@
         </footer>
     </div>
 
-    <!-- モーダル -->
+    <!-- モーダル各種 -->
     <div id="choice-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
             <h3 class="font-bold mb-6 text-xl text-center">なにを ふやす？</h3>
@@ -397,7 +397,37 @@
         </div>
     </div>
 
-    <script>
+    <!-- 削除確認カスタムモーダル (alert/confirm禁止ルール対応) -->
+    <div id="delete-confirm-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center">
+            <h3 id="delete-confirm-title" class="font-bold mb-6 text-xl">本当にけしますか？</h3>
+            <div class="flex gap-4">
+                <button onclick="closeDeleteConfirmModal()" class="flex-1 py-4 bg-gray-100 rounded-xl font-bold text-gray-600">やめる</button>
+                <button onclick="executeDeleteCategory()" class="flex-1 py-4 bg-red-500 text-white rounded-xl font-bold shadow-lg">けす</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase / Firestore 設定スクリプト -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 環境設定の取得
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "",
+            authDomain: "dummy.firebaseapp.com",
+            projectId: "dummy",
+            storageBucket: "dummy.appspot.com",
+            messagingSenderId: "dummy",
+            appId: "dummy"
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
         const defaultCategories = [
             { id: 'teacher', name: 'せんせい', color: 'bg-blue-500', custom: false },
             { id: 'greet', name: 'あいさつ', color: 'bg-green-600', custom: false },
@@ -428,11 +458,10 @@
             { cat: 'feel', text: 'いたい', icon: '🤕', custom: false }
         ];
 
-        let categories = JSON.parse(localStorage.getItem('yubidenwa_v19_cats')) || defaultCategories;
-        let phrases = JSON.parse(localStorage.getItem('yubidenwa_v19_phrases')) || defaultPhrases;
-        let voiceNames = JSON.parse(localStorage.getItem('yubidenwa_v19_voice_names')) || {};
+        let categories = defaultCategories;
+        let phrases = defaultPhrases;
+        let voiceNames = {};
         
-        // 各列（カラム）がすべて5要素になるように空文字列を追加してグリッドラインを完全に揃えます
         const kanaStd = [
             ['あ','い','う','え','お'],
             ['か','き','く','け','こ'],
@@ -441,9 +470,9 @@
             ['な','に','ぬ','ね','の'],
             ['は','ひ','ふ','へ','ほ'],
             ['ま','み','む','め','も'],
-            ['や','゛','ゆ','゜','よ'], // 濁点(゛)と半濁点(゜)をここに配置！
+            ['や','゛','ゆ','゜','よ'], 
             ['ら','り','る','れ','ろ'],
-            ['わ','を','ん','小','ー']  // 大小変換(小)と伸ばし棒(ー)をここに配置！
+            ['わ','を','ん','小','ー']  
         ];
 
         let currentCat = 'teacher';
@@ -451,6 +480,16 @@
         let activeVoiceIdx = 0;
         let selected = [];
         let editingVoiceIdx = null;
+        let user = null;
+        let categoryIdToDelete = null;
+
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        };
 
         function init() {
             const loadVoices = () => {
@@ -463,14 +502,67 @@
             loadVoices(); 
             renderSidebar();
             renderCards();
+
+            // Firebaseのログイン初期化
+            initAuth()
+                .then(() => {
+                    onAuthStateChanged(auth, (u) => {
+                        user = u;
+                        if (user) {
+                            setupSync();
+                        }
+                    });
+                })
+                .catch((err) => {
+                    console.error("ログイン初期化エラー:", err);
+                });
             
-            // 引っ張りスクロール（バウンス）をスクリプトでも完全に防止
             document.addEventListener('touchmove', function(e) {
                 if (e.target.closest('.sidebar, .display-box, .card-grid-container')) {
                     return; 
                 }
                 e.preventDefault();
             }, { passive: false });
+        }
+
+        // Firestoreとのリアルタイム同期
+        function setupSync() {
+            if (!user) return;
+            const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'user_board');
+            
+            onSnapshot(userDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    categories = data.categories || defaultCategories;
+                    phrases = data.phrases || defaultPhrases;
+                    voiceNames = data.voiceNames || {};
+                } else {
+                    // データが存在しない場合は新規登録
+                    categories = defaultCategories;
+                    phrases = defaultPhrases;
+                    voiceNames = {};
+                    saveToCloud();
+                }
+                renderSidebar();
+                renderCards();
+            }, (error) => {
+                console.error("データ同期エラー:", error);
+            });
+        }
+
+        // クラウドへ保存
+        async function saveToCloud() {
+            if (!user) return;
+            const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'user_board');
+            try {
+                await setDoc(userDocRef, {
+                    categories: categories,
+                    phrases: phrases,
+                    voiceNames: voiceNames
+                });
+            } catch (error) {
+                console.error("保存失敗:", error);
+            }
         }
 
         function renderSidebar() {
@@ -506,7 +598,6 @@
                 if (voices.length === 0) {
                     grid.innerHTML = `<div class="col-span-full p-8 text-center"><button onclick="forceLoadVoices()" class="bg-blue-100 text-blue-600 px-8 py-8 rounded-2xl font-bold text-xl active:scale-95">こえを よみこむ</button></div>`;
                 } else {
-                    // 全ての「声」をカードとして縦方向に並べる
                     voices.forEach((v, i) => {
                         const card = document.createElement('div');
                         card.className = `card ${activeVoiceIdx === i ? 'bg-blue-600 text-white ring-4 ring-blue-200' : 'bg-white text-blue-600'}`;
@@ -519,7 +610,6 @@
                         card.onclick = () => { activeVoiceIdx = i; renderCards(); speak(dName); };
                         grid.appendChild(card);
                     });
-                    // せんせいカテゴリに追加されたメッセージ
                     const list = phrases.filter(p => p.cat === 'teacher');
                     list.forEach(p => renderPhraseCard(p, grid));
                 }
@@ -554,8 +644,6 @@
             area.classList.toggle('hidden', !isHidden);
             grid.classList.toggle('hidden', isHidden);
             speakBtn.classList.toggle('hidden', !isHidden);
-
-            // キーボード表示時は白枠ギリギリまで広げるためクラスを付与
             contentArea.classList.toggle('has-kb', isHidden);
 
             if (isHidden) renderKb();
@@ -579,18 +667,16 @@
             if (selected.length === 0) return;
             const lastIdx = selected.length - 1;
             const char = selected[lastIdx];
-            
             const map = {
                 'か':'が', 'き':'ぎ', 'く':'ぐ', 'け':'げ', 'こ':'ご',
                 'さ':'ざ', 'し':'じ', 'す':'ず', 'せ':'ぜ', 'そ':'ぞ',
                 'た':'だ', 'ち':'ぢ', 'つ':'づ', 'て':'で', 'と':'ど',
                 'は':'ば', 'ひ':'び', 'ふ':'ぶ', 'へ':'べ', 'ほ':'ぼ',
                 'が':'か', 'ぎ':'き', 'ぐ':'く', 'げ':'け', 'ご':'こ',
-                'ざ':'さ', 'じ':'し', 'ず':'す', 'ぜ':'せ', 'ぞ':'そ',
-                'だ':'た', 'ぢ':'ち', 'づ':'つ', 'で':'て', 'ど':'と',
+                'ざ':'さ', 'じ':'し', 'ず':'す', 'ぜ':'ぜ', 'ぞ':'そ',
+                'だ':'た', 'ぢ':'ち', 'づ':'つ', 'て':'て', 'ど':'と',
                 'ば':'は', 'び':'ひ', 'ぶ':'ふ', 'べ':'へ', 'ぼ':'ほ'
             };
-            
             if (map[char]) {
                 selected[lastIdx] = map[char];
                 updateDisplay();
@@ -602,13 +688,11 @@
             if (selected.length === 0) return;
             const lastIdx = selected.length - 1;
             const char = selected[lastIdx];
-            
             const map = {
                 'は':'ぱ', 'ひ':'ぴ', 'ふ':'ぷ', 'へ':'ぺ', 'ほ':'ぽ',
                 'ば':'ぱ', 'び':'ぴ', 'ぶ':'ぷ', 'べ':'ぺ', 'ぼ':'ぽ',
                 'ぱ':'は', 'ぴ':'ひ', 'ぷ':'ふ', 'ぺ':'へ', 'ぽ':'ほ'
             };
-            
             if (map[char]) {
                 selected[lastIdx] = map[char];
                 updateDisplay();
@@ -616,11 +700,11 @@
             }
         }
 
+        // 小さい「っ」「ゃ」などの変換
         function applySmall() {
             if (selected.length === 0) return;
             const lastIdx = selected.length - 1;
             const char = selected[lastIdx];
-            
             const map = {
                 'あ':'ぁ', 'い':'ぃ', 'う':'ぅ', 'え':'ぇ', 'お':'ぉ',
                 'や':'ゃ', 'ゆ':'ゅ', 'よ':'ょ',
@@ -629,7 +713,6 @@
                 'ゃ':'や', 'ゅ':'ゆ', 'ょ':'よ',
                 'っ':'つ', 'ゎ':'わ'
             };
-            
             if (map[char]) {
                 selected[lastIdx] = map[char];
                 updateDisplay();
@@ -687,23 +770,35 @@
             if (!name) return;
             const id = 'custom_' + Date.now();
             categories.push({ id, name, color: 'bg-indigo-500', custom: true });
-            localStorage.setItem('yubidenwa_v19_cats', JSON.stringify(categories));
+            saveToCloud();
             document.getElementById('new-cat-name').value = '';
             closeAddCatModal();
             renderSidebar();
             setCat(id);
         }
 
+        // 削除確認カスタムモーダルの展開
         function deleteCategory(id, e) {
             e.stopPropagation();
-            if (confirm(`「${categories.find(c=>c.id===id).name}」を けしますか？`)) {
-                categories = categories.filter(c => c.id !== id);
-                phrases = phrases.filter(p => p.cat !== id);
-                localStorage.setItem('yubidenwa_v19_cats', JSON.stringify(categories));
-                localStorage.setItem('yubidenwa_v19_phrases', JSON.stringify(phrases));
-                if (currentCat === id) setCat('teacher');
-                else renderSidebar();
-            }
+            categoryIdToDelete = id;
+            const cat = categories.find(c => c.id === id);
+            document.getElementById('delete-confirm-title').innerText = `「${cat.name}」を けしますか？`;
+            document.getElementById('delete-confirm-modal').classList.remove('hidden');
+        }
+
+        function closeDeleteConfirmModal() {
+            document.getElementById('delete-confirm-modal').classList.add('hidden');
+            categoryIdToDelete = null;
+        }
+
+        function executeDeleteCategory() {
+            if (!categoryIdToDelete) return;
+            categories = categories.filter(c => c.id !== categoryIdToDelete);
+            phrases = phrases.filter(p => p.cat !== categoryIdToDelete);
+            saveToCloud();
+            if (currentCat === categoryIdToDelete) setCat('teacher');
+            else renderSidebar();
+            closeDeleteConfirmModal();
         }
 
         function saveNewPhrase() {
@@ -711,7 +806,7 @@
             const icon = document.getElementById('new-icon').value.trim() || '⭐️';
             if (!text) return;
             phrases.push({ cat: currentCat, text, icon, custom: true });
-            localStorage.setItem('yubidenwa_v19_phrases', JSON.stringify(phrases));
+            saveToCloud();
             document.getElementById('new-text').value = '';
             document.getElementById('new-icon').value = '';
             closeAddModal();
@@ -721,7 +816,7 @@
         function deletePhrase(text, cat, e) {
             e.stopPropagation();
             phrases = phrases.filter(p => !(p.text === text && p.cat === cat && p.custom === true));
-            localStorage.setItem('yubidenwa_v19_phrases', JSON.stringify(phrases));
+            saveToCloud();
             renderCards();
         }
 
@@ -739,7 +834,7 @@
             if (newName) {
                 const v = voices[editingVoiceIdx];
                 voiceNames[v.voiceURI] = newName;
-                localStorage.setItem('yubidenwa_v19_voice_names', JSON.stringify(voiceNames));
+                saveToCloud();
                 activeVoiceIdx = editingVoiceIdx; 
                 speak(newName);
             }
@@ -754,6 +849,29 @@
         function openAddCatModal() { closeChoiceModal(); document.getElementById('add-cat-modal').classList.remove('hidden'); }
         function closeAddCatModal() { document.getElementById('add-cat-modal').classList.add('hidden'); }
         function closeVoiceModal() { document.getElementById('voice-edit-modal').classList.add('hidden'); }
+
+        // グローバルにバインド
+        window.setCat = setCat;
+        window.clearAll = clearAll;
+        window.speakAll = speakAll;
+        window.openVoiceEditModal = openVoiceEditModal;
+        window.closeVoiceModal = closeVoiceModal;
+        window.saveVoiceName = saveVoiceName;
+        window.openChoiceModal = openChoiceModal;
+        window.closeChoiceModal = closeChoiceModal;
+        window.openAddModal = openAddModal;
+        window.closeAddModal = closeAddModal;
+        window.openAddCatModal = openAddCatModal;
+        window.closeAddCatModal = closeAddCatModal;
+        window.toggleKeyboard = toggleKeyboard;
+        window.addChar = addChar;
+        window.removeLastChar = removeLastChar;
+        window.saveNewCategory = saveNewCategory;
+        window.deleteCategory = deleteCategory;
+        window.saveNewPhrase = saveNewPhrase;
+        window.deletePhrase = deletePhrase;
+        window.closeDeleteConfirmModal = closeDeleteConfirmModal;
+        window.executeDeleteCategory = executeDeleteCategory;
 
         init();
     </script>
