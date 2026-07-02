@@ -408,7 +408,7 @@
         </div>
     </div>
 
-    <!-- Firebase / Firestore 設定スクリプト -->
+    <!-- Firebase / Firestore & 画面表示の一本化スクリプト -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -490,16 +490,15 @@
             }
         };
 
-        // 過去のすべてのバージョンキーからデータを自動引き継ぎする超強力フォールバック
+        // 過去のすべてのバージョンキー（v6〜v25）からデータを自動引き継ぎする超強力ロジック
         function getLatestLocalData(keySuffix, defaultVal) {
-            // v25からv6までさかのぼって探すことで、どの時系列のデータも絶対に取りこぼしません
             for (let v = 25; v >= 6; v--) {
                 try {
                     const data = localStorage.getItem(`yubidenwa_v${v}_${keySuffix}`);
                     if (data) {
                         const parsed = JSON.parse(data);
                         if (parsed && (Array.isArray(parsed) ? parsed.length > 0 : Object.keys(parsed).length > 0)) {
-                            console.log(`バージョン v${v} からデータを引き継ぎました: ${keySuffix}`);
+                            console.log(`バージョン v${v} からデータを完全に引き継ぎました: ${keySuffix}`);
                             return parsed;
                         }
                     }
@@ -510,7 +509,7 @@
             return defaultVal;
         }
 
-        // ローカルに保存されているデータを最優先で復元
+        // iPad側のバックアップデータを最優先ロード
         function loadLocalBackup() {
             categories = getLatestLocalData('cats', defaultCategories);
             phrases = getLatestLocalData('phrases', defaultPhrases);
@@ -518,7 +517,7 @@
         }
 
         function init() {
-            // アプリ起動直後に即座にデータを復元（これで表示が消えることはありません！）
+            // 起動時にまず1ミリ秒で即データを復元
             loadLocalBackup();
             renderSidebar();
             
@@ -562,28 +561,27 @@
             onSnapshot(userDocRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    // クラウドに有効なデータがあればそれを使う
+                    // クラウドに有効なデータがあればそれを採用
                     if (data.categories && data.categories.length > 0) categories = data.categories;
                     if (data.phrases && data.phrases.length > 0) phrases = data.phrases;
                     voiceNames = data.voiceNames || {};
                     
-                    // 同期した内容をローカルストレージにも上書き保存
+                    // キャッシュを更新
                     saveLocalCache();
                 } else {
-                    // クラウド上にデータがない場合は、現在の最新ローカルデータをバックアップとしてクラウドへ送信
+                    // クラウド上にデータがない場合は、iPadの最新データをクラウドへ送信
                     saveToCloud();
                 }
                 renderSidebar();
                 renderCards();
             }, (error) => {
-                console.error("データ同期エラー（ローカルデータを保護しました）:", error);
-                // 同期エラー時もローカルデータを絶対維持して表示
+                console.error("同期に失敗しましたが、ローカルデータは安全に保護されています:", error);
                 renderSidebar();
                 renderCards();
             });
         }
 
-        // ローカルキャッシュの更新用
+        // ローカルキャッシュの更新
         function saveLocalCache() {
             try {
                 localStorage.setItem('yubidenwa_v20_cats', JSON.stringify(categories));
@@ -596,10 +594,8 @@
 
         // クラウド & ローカルのダブル保存
         async function saveToCloud() {
-            // まず即座にローカルへ保存（1ミリ秒で即完了）
             saveLocalCache();
 
-            // クラウド（Firestore）側へ送信
             if (!user) return;
             const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'user_board');
             try {
@@ -609,12 +605,13 @@
                     voiceNames: voiceNames
                 });
             } catch (error) {
-                console.error("クラウドへの同期に失敗しましたが、ローカルには安全に保存されました:", error);
+                console.error("同期失敗:", error);
             }
         }
 
         function renderSidebar() {
             const side = document.getElementById('sidebar');
+            if (!side) return;
             side.innerHTML = categories.map(c => `
                 <div class="relative w-full">
                     <button onclick="setCat('${c.id}')" class="category-btn ${c.color} ${currentCat === c.id ? 'active' : ''}">${c.name}</button>
@@ -640,13 +637,13 @@
 
         function renderCards() {
             const grid = document.getElementById('card-grid');
+            if (!grid) return;
             grid.innerHTML = '';
 
             if (currentCat === 'teacher') {
                 if (voices.length === 0) {
                     grid.innerHTML = `<div class="col-span-full p-8 text-center"><button onclick="forceLoadVoices()" class="bg-blue-100 text-blue-600 px-8 py-8 rounded-2xl font-bold text-xl active:scale-95">こえを よみこむ</button></div>`;
                 } else {
-                    // 全ての「声」をカードとして縦方向に並べる
                     voices.forEach((v, i) => {
                         const card = document.createElement('div');
                         card.className = `card ${activeVoiceIdx === i ? 'bg-blue-600 text-white ring-4 ring-blue-200' : 'bg-white text-blue-600'}`;
@@ -659,7 +656,6 @@
                         card.onclick = () => { activeVoiceIdx = i; renderCards(); speak(dName); };
                         grid.appendChild(card);
                     });
-                    // せんせいカテゴリに追加されたメッセージ
                     const list = phrases.filter(p => p.cat === 'teacher');
                     list.forEach(p => renderPhraseCard(p, grid));
                 }
@@ -702,6 +698,7 @@
 
         function renderKb() {
             const cont = document.getElementById('kana-container');
+            if (!cont) return;
             cont.innerHTML = kanaStd.map(col => `
                 <div class="flex flex-col gap-1.5 h-full">
                     ${col.map(char => {
@@ -750,7 +747,6 @@
             }
         }
 
-        // 小さい「っ」「ゃ」などの変換
         function applySmall() {
             if (selected.length === 0) return;
             const lastIdx = selected.length - 1;
@@ -815,6 +811,11 @@
             window.speechSynthesis.speak(u);
         }
 
+        function forceLoadVoices() {
+            voices = window.speechSynthesis.getVoices().filter(v => v.lang.includes('ja'));
+            renderCards();
+        }
+
         function saveNewCategory() {
             const name = document.getElementById('new-cat-name').value.trim();
             if (!name) return;
@@ -827,7 +828,6 @@
             setCat(id);
         }
 
-        // 削除確認カスタムモーダルの展開
         function deleteCategory(id, e) {
             e.stopPropagation();
             categoryIdToDelete = id;
@@ -900,7 +900,7 @@
         function closeAddCatModal() { document.getElementById('add-cat-modal').classList.add('hidden'); }
         function closeVoiceModal() { document.getElementById('voice-edit-modal').classList.add('hidden'); }
 
-        // グローバルにバインド
+        // iPadでのonclickイベントの動作を100%保証するために、全ての関数をwindow（グローバル）に完璧にバインドします
         window.setCat = setCat;
         window.clearAll = clearAll;
         window.speakAll = speakAll;
@@ -922,6 +922,7 @@
         window.deletePhrase = deletePhrase;
         window.closeDeleteConfirmModal = closeDeleteConfirmModal;
         window.executeDeleteCategory = executeDeleteCategory;
+        window.forceLoadVoices = forceLoadVoices;
 
         init();
     </script>
